@@ -32,7 +32,6 @@ export default function StudentDetail() {
             <p className="text-muted-foreground">ID: {student.id}</p>
           </div>
         </div>
-        <Button onClick={() => nav(`/students/${id}/edit`)}><Pencil className="h-4 w-4 mr-2" />Edit</Button>
       </div>
       <Card>
         <CardHeader><CardTitle>Base Information</CardTitle></CardHeader>
