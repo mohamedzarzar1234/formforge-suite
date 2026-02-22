@@ -7,8 +7,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
-import StudentForm from "./pages/StudentForm";
-import StudentDetail from "./pages/StudentDetail";
 import Teachers from "./pages/Teachers";
 import Parents from "./pages/Parents";
 import Managers from "./pages/Managers";
@@ -31,9 +29,6 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/students" element={<Students />} />
-            <Route path="/students/new" element={<StudentForm />} />
-            <Route path="/students/:id" element={<StudentDetail />} />
-            <Route path="/students/:id/edit" element={<StudentForm />} />
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/parents" element={<Parents />} />
             <Route path="/managers" element={<Managers />} />

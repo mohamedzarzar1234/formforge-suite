@@ -2,11 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEntities, getTemplate, createEntity, updateEntity, deleteEntity } from '@/services/api';
 import { DataTable, Column } from '@/components/DataTable';
 import { DynamicForm } from '@/components/dynamic-form/DynamicForm';
+import { DynamicView } from '@/components/dynamic-view/DynamicView';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -15,8 +17,10 @@ export default function Parents() {
   const qc = useQueryClient();
   const { data: parents = [] } = useQuery({ queryKey: ['parents'], queryFn: () => getEntities('parent') });
   const { data: template } = useQuery({ queryKey: ['template', 'parent'], queryFn: () => getTemplate('parent') });
+  const { data: students = [] } = useQuery({ queryKey: ['students'], queryFn: () => getEntities('student') });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [viewing, setViewing] = useState<any>(null);
   const [firstname, setFirstname] = useState('');
   const [lastname, setLastname] = useState('');
 
@@ -32,6 +36,8 @@ export default function Parents() {
   });
 
   const del = useMutation({ mutationFn: (id: string) => deleteEntity('parent', id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); toast.success('Deleted'); } });
+
+  const parentStudents = (p: any) => students.filter((s: any) => s.parentIds?.includes(p.id));
 
   const columns: Column[] = [
     { key: 'firstname', label: 'First Name', sortable: true },
@@ -49,6 +55,7 @@ export default function Parents() {
       <DataTable columns={columns} data={parents} searchPlaceholder="Search parents..."
         actions={row => (
           <div className="flex gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setViewing(row)}><Eye className="h-4 w-4" /></Button>
             <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
             <AlertDialog>
               <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
@@ -58,6 +65,32 @@ export default function Parents() {
           </div>
         )}
       />
+
+      {/* Detail View Dialog */}
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+          <DialogHeader><DialogTitle>{viewing?.firstname} {viewing?.lastname}</DialogTitle></DialogHeader>
+          {viewing && template && (
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div><p className="text-xs font-medium text-muted-foreground uppercase mb-1">First Name</p><p className="text-sm">{viewing.firstname}</p></div>
+                <div><p className="text-xs font-medium text-muted-foreground uppercase mb-1">Last Name</p><p className="text-sm">{viewing.lastname}</p></div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Students</p>
+                  <div className="flex gap-1 flex-wrap">{parentStudents(viewing).length > 0 ? parentStudents(viewing).map((s: any) => <Badge key={s.id} variant="secondary">{s.firstname} {s.lastname}</Badge>) : <span className="text-sm text-muted-foreground italic">—</span>}</div>
+                </div>
+              </div>
+              <DynamicView fields={template.fields} data={viewing} />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+                <Button onClick={() => { const p = viewing; setViewing(null); openEdit(p); }}><Pencil className="h-4 w-4 mr-2" />Edit</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit/Create Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader><DialogTitle>{editing ? 'Edit Parent' : 'New Parent'}</DialogTitle></DialogHeader>

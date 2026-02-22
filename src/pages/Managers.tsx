@@ -2,12 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEntities, getTemplate, createEntity, updateEntity, deleteEntity, getClasses } from '@/services/api';
 import { DataTable, Column } from '@/components/DataTable';
 import { DynamicForm } from '@/components/dynamic-form/DynamicForm';
+import { DynamicView } from '@/components/dynamic-view/DynamicView';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -19,6 +21,7 @@ export default function Managers() {
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: getClasses });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [viewing, setViewing] = useState<any>(null);
   const [firstname, setFirstname] = useState('');
   const [lastname, setLastname] = useState('');
   const [classIds, setClassIds] = useState<string[]>([]);
@@ -35,6 +38,8 @@ export default function Managers() {
   });
 
   const del = useMutation({ mutationFn: (id: string) => deleteEntity('manager', id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); toast.success('Deleted'); } });
+
+  const managerClasses = (m: any) => classes.filter((c: any) => m.classIds?.includes(c.id));
 
   const columns: Column[] = [
     { key: 'firstname', label: 'First Name', sortable: true },
@@ -53,6 +58,7 @@ export default function Managers() {
       <DataTable columns={columns} data={managers} searchPlaceholder="Search managers..."
         actions={row => (
           <div className="flex gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setViewing(row)}><Eye className="h-4 w-4" /></Button>
             <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
             <AlertDialog>
               <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
@@ -62,6 +68,32 @@ export default function Managers() {
           </div>
         )}
       />
+
+      {/* Detail View Dialog */}
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+          <DialogHeader><DialogTitle>{viewing?.firstname} {viewing?.lastname}</DialogTitle></DialogHeader>
+          {viewing && template && (
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div><p className="text-xs font-medium text-muted-foreground uppercase mb-1">First Name</p><p className="text-sm">{viewing.firstname}</p></div>
+                <div><p className="text-xs font-medium text-muted-foreground uppercase mb-1">Last Name</p><p className="text-sm">{viewing.lastname}</p></div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Classes</p>
+                  <div className="flex gap-1 flex-wrap">{managerClasses(viewing).length > 0 ? managerClasses(viewing).map((c: any) => <Badge key={c.id} variant="secondary">{c.name}</Badge>) : <span className="text-sm text-muted-foreground italic">—</span>}</div>
+                </div>
+              </div>
+              <DynamicView fields={template.fields} data={viewing} />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+                <Button onClick={() => { const m = viewing; setViewing(null); openEdit(m); }}><Pencil className="h-4 w-4 mr-2" />Edit</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit/Create Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader><DialogTitle>{editing ? 'Edit Manager' : 'New Manager'}</DialogTitle></DialogHeader>
