@@ -67,17 +67,19 @@ export default function StudentAttendance() {
 
   const filteredAbsences = useMemo(() => {
     let items = absences;
+    if (filter.entityId) { items = items.filter(i => i.studentId === filter.entityId); }
     if (filter.classId) { const ids = students.filter(s => s.classId === filter.classId).map(s => s.id); items = items.filter(i => ids.includes(i.studentId)); }
     if (filter.levelId) { const ids = students.filter(s => s.levelId === filter.levelId).map(s => s.id); items = items.filter(i => ids.includes(i.studentId)); }
     return items;
-  }, [absences, filter.classId, filter.levelId, students]);
+  }, [absences, filter.entityId, filter.classId, filter.levelId, students]);
 
   const filteredLates = useMemo(() => {
     let items = lates;
+    if (filter.entityId) { items = items.filter(i => i.studentId === filter.entityId); }
     if (filter.classId) { const ids = students.filter(s => s.classId === filter.classId).map(s => s.id); items = items.filter(i => ids.includes(i.studentId)); }
     if (filter.levelId) { const ids = students.filter(s => s.levelId === filter.levelId).map(s => s.id); items = items.filter(i => ids.includes(i.studentId)); }
     return items;
-  }, [lates, filter.classId, filter.levelId, students]);
+  }, [lates, filter.entityId, filter.classId, filter.levelId, students]);
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['student-absences'] }); qc.invalidateQueries({ queryKey: ['student-lates'] }); qc.invalidateQueries({ queryKey: ['student-attendance-stats'] }); };
 
@@ -196,6 +198,13 @@ export default function StudentAttendance() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Student</Label>
+              <Select value={filter.entityId || 'all'} onValueChange={v => setFilter(f => ({ ...f, entityId: v === 'all' ? undefined : v }))}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Students</SelectItem>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1"><Label className="text-xs">Date From</Label><Input type="date" value={filter.dateFrom || ''} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value || undefined }))} className="w-40" /></div>
             <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
             <div className="space-y-1">

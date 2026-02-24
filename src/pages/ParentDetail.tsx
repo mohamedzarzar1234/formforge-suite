@@ -33,23 +33,35 @@ export default function ParentDetail() {
       <Tabs defaultValue="info">
         <TabsList>
           <TabsTrigger value="info">Information</TabsTrigger>
+          <TabsTrigger value="students">Related Students ({children.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader><CardTitle className="text-lg">Children</CardTitle></CardHeader>
-              <CardContent>
-                {children.length === 0 ? <p className="text-muted-foreground">No children linked</p> : (
-                  <div className="space-y-2">{children.map(c => <p key={c.id} className="font-medium cursor-pointer hover:text-primary" onClick={() => navigate(`/students/${c.id}`)}>{c.firstname} {c.lastname}</p>)}</div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-lg">Details</CardTitle></CardHeader>
-              <CardContent><DynamicView fields={fields} data={parent.dynamicFields || {}} /></CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Details</CardTitle></CardHeader>
+            <CardContent><DynamicView fields={fields} data={parent.dynamicFields || {}} /></CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="students">
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Children</CardTitle></CardHeader>
+            <CardContent>
+              {children.length === 0 ? <p className="text-muted-foreground">No children linked</p> : (
+                <div className="space-y-3">
+                  {children.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 cursor-pointer" onClick={() => navigate(`/students/${c.id}`)}>
+                      <div>
+                        <p className="font-medium">{c.firstname} {c.lastname}</p>
+                        <p className="text-sm text-muted-foreground">ID: {c.id}</p>
+                      </div>
+                      <Button variant="ghost" size="sm">View</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
