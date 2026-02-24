@@ -1,92 +1,219 @@
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEntities, getTemplate, createEntity, updateEntity, deleteEntity, getClasses } from '@/services/api';
-import { DataTable, Column } from '@/components/DataTable';
-import { DynamicForm } from '@/components/dynamic-form/DynamicForm';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { Plus, Check, ChevronsUpDown } from 'lucide-react';
+import { managerApi, classApi, templateApi } from '@/services/api';
+import { buildDynamicSchema, getDynamicDefaults } from '@/lib/schema-builder';
+import type { Manager } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
+import { DataTable, type Column } from '@/components/DataTable';
+import { DynamicFormFields } from '@/components/DynamicFormFields';
+import { PhotoUpload } from '@/components/PhotoUpload';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { cn } from '@/lib/utils';
 
-export default function Managers() {
-  const nav = useNavigate();
+export default function ManagersPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: managers = [] } = useQuery({ queryKey: ['managers'], queryFn: () => getEntities('manager') });
-  const { data: template } = useQuery({ queryKey: ['template', 'manager'], queryFn: () => getTemplate('manager') });
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: getClasses });
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [firstname, setFirstname] = useState('');
-  const [lastname, setLastname] = useState('');
-  const [classIds, setClassIds] = useState<string[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Manager | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Manager | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
-  const openNew = () => { setEditing(null); setFirstname(''); setLastname(''); setClassIds([]); setOpen(true); };
-  const openEdit = (m: any) => { setEditing(m); setFirstname(m.firstname); setLastname(m.lastname); setClassIds(m.classIds || []); setOpen(true); };
+  const { data: res, isLoading } = useQuery({ queryKey: ['managers'], queryFn: () => managerApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
+  const { data: classesRes } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
+  const fields = tplRes?.data?.manager?.fields || [];
 
-  const mutation = useMutation({
-    mutationFn: (data: any) => {
-      const payload = { ...data, firstname, lastname, classIds };
-      return editing ? updateEntity('manager', editing.id, payload) : createEntity('manager', payload);
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); toast.success(editing ? 'Updated' : 'Created'); setOpen(false); },
-  });
+  const createMut = useMutation({ mutationFn: (d: Partial<Manager>) => managerApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); setDialogOpen(false); toast.success('Manager created'); } });
+  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => managerApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); setDialogOpen(false); toast.success('Manager updated'); } });
+  const deleteMut = useMutation({ mutationFn: (id: string) => managerApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); toast.success('Manager deleted'); } });
 
-  const del = useMutation({ mutationFn: (id: string) => deleteEntity('manager', id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); toast.success('Deleted'); } });
+  const columns: Column<Manager>[] = useMemo(() => [
+    { key: 'firstname', label: 'First Name' },
+    { key: 'lastname', label: 'Last Name' },
+    { key: 'classIds', label: 'Classes', render: m => m.classIds.map(id => classesRes?.data?.find(c => c.id === id)?.name).filter(Boolean).join(', ') || '—' },
+    ...fields.filter(f => f.visible).slice(0, 2).map(f => ({ key: f.name, label: f.label, render: (m: Manager) => String(m.dynamicFields?.[f.name] ?? '—') })),
+  ], [fields, classesRes]);
 
-  const columns: Column[] = [
-    { key: 'firstname', label: 'First Name', sortable: true },
-    { key: 'lastname', label: 'Last Name', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'department', label: 'Department' },
-    { key: 'position', label: 'Position' },
-  ];
+  const handleSubmit = (data: any) => { const { firstname, lastname, classIds, photo, ...rest } = data; const payload = { firstname, lastname, classIds, dynamicFields: { ...rest, photo } }; editing ? updateMut.mutate({ id: editing.id, ...payload }) : createMut.mutate(payload); };
+
+  const handleImport = (rows: Record<string, string>[]) => {
+    let count = 0;
+    rows.forEach(row => {
+      const m: Partial<Manager> = { firstname: row['First Name'] || row['firstname'] || '', lastname: row['Last Name'] || row['lastname'] || '', classIds: [], dynamicFields: {} };
+      if (m.firstname && m.lastname) { createMut.mutate(m); count++; }
+    });
+    toast.success(`Imported ${count} managers`);
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Managers</h1><p className="text-muted-foreground">Manage school managers</p></div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Manager</Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">Managers</h1><p className="text-muted-foreground">{res?.total ?? 0} managers</p></div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Manager</Button>
       </div>
-      <DataTable columns={columns} data={managers} searchPlaceholder="Search managers..."
-        actions={row => (
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" onClick={() => nav(`/managers/${row.id}`)}><Eye className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
-              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete manager?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => del.mutate(row.id)}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
-      />
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
-          <DialogHeader><DialogTitle>{editing ? 'Edit Manager' : 'New Manager'}</DialogTitle></DialogHeader>
-          {template && (
-            <DynamicForm fields={template.fields} initialData={editing} onSubmit={d => mutation.mutate(d)} onCancel={() => setOpen(false)} isLoading={mutation.isPending}
-              extraFieldsBefore={
-                <div className="space-y-4 pb-4 border-b mb-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div><Label>First Name *</Label><Input value={firstname} onChange={e => setFirstname(e.target.value)} required /></div>
-                    <div><Label>Last Name *</Label><Input value={lastname} onChange={e => setLastname(e.target.value)} required /></div>
-                  </div>
-                  <div><Label>Classes</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-auto">
-                      {classes.map((c: any) => (<label key={c.id} className="flex items-center gap-2"><Checkbox checked={classIds.includes(c.id)} onCheckedChange={ch => setClassIds(p => ch ? [...p, c.id] : p.filter(x => x !== c.id))} /><span className="text-sm">{c.name}</span></label>))}
-                    </div>
-                  </div>
-                </div>
-              }
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search managers..." onView={m => navigate(`/managers/${m.id}`)} onEdit={m => { setEditing(m); setDialogOpen(true); }} onDelete={m => setDeleteTarget(m)} exportFilename="managers" onImportClick={() => setImportOpen(true)} />
+      <ManagerDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} classes={classesRes?.data || []} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={handleSubmit} />
+      <ExcelImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={handleImport} expectedColumns={['First Name', 'Last Name']} />
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete manager?</AlertDialogTitle><AlertDialogDescription>Permanently delete {deleteTarget?.firstname} {deleteTarget?.lastname}?</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+function ManagerDialog({ open, onOpenChange, editing, fields, classes, isSubmitting, onSubmit }: any) {
+  const schema = z.object({
+    firstname: z.string().min(1, 'Required'),
+    lastname: z.string().min(1, 'Required'),
+    classIds: z.array(z.string()).optional(),
+    photo: z.string().optional(),
+    ...buildDynamicSchema(fields)
+  });
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      firstname: '',
+      lastname: '',
+      classIds: [],
+      photo: '',
+      ...getDynamicDefaults(fields)
+    }
+  });
+
+  // Reset form when dialog opens or when editing/fields change
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        firstname: editing?.firstname || '',
+        lastname: editing?.lastname || '',
+        classIds: editing?.classIds || [],
+        photo: editing?.dynamicFields?.photo || '',
+        ...getDynamicDefaults(fields, editing?.dynamicFields)
+      });
+    }
+  }, [open, editing, fields, form]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Edit Manager' : 'Add Manager'}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField control={form.control} name="photo" render={({ field }) => (
+              <FormItem>
+                <PhotoUpload value={field.value} onChange={field.onChange} initials={(form.watch('firstname')?.[0] || '') + (form.watch('lastname')?.[0] || '')} />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="firstname" render={({ field }) => (
+                <FormItem><FormLabel>First Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="lastname" render={({ field }) => (
+                <FormItem><FormLabel>Last Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+
+            {/* Multi-select for Classes */}
+            <FormField
+              control={form.control}
+              name="classIds"
+              render={({ field }) => {
+                const selectedClassIds = field.value || [];
+                return (
+                  <FormItem>
+                    <FormLabel>Classes</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !selectedClassIds.length && "text-muted-foreground"
+                            )}
+                          >
+                            {selectedClassIds.length > 0 ? (
+                              <div className="flex gap-1 flex-wrap">
+                                {selectedClassIds.slice(0, 2).map((id) => {
+                                  const cls = classes.find((c: any) => c.id === id);
+                                  return cls ? (
+                                    <Badge variant="secondary" key={id}>
+                                      {cls.name}
+                                    </Badge>
+                                  ) : null;
+                                })}
+                                {selectedClassIds.length > 2 && (
+                                  <Badge variant="secondary">+{selectedClassIds.length - 2}</Badge>
+                                )}
+                              </div>
+                            ) : (
+                              "Select classes"
+                            )}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search classes..." />
+                          <CommandEmpty>No classes found.</CommandEmpty>
+                          <CommandGroup className="max-h-64 overflow-auto">
+                            {classes.map((cls: any) => (
+                              <CommandItem
+                                key={cls.id}
+                                onSelect={() => {
+                                  const current = field.value || [];
+                                  const updated = current.includes(cls.id)
+                                    ? current.filter((id: string) => id !== cls.id)
+                                    : [...current, cls.id];
+                                  field.onChange(updated);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedClassIds.includes(cls.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {cls.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
+            />
+
+            <DynamicFormFields fields={fields} control={form.control} />
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }

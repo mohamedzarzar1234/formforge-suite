@@ -1,79 +1,79 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getClasses, getLevels, createClass, updateClass, deleteClass } from '@/services/api';
-import { DataTable, Column } from '@/components/DataTable';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { Plus } from 'lucide-react';
+import { classApi, levelApi } from '@/services/api';
+import type { SchoolClass } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DataTable, type Column } from '@/components/DataTable';
 
-export default function Classes() {
+const schema = z.object({ name: z.string().min(1, 'Required'), section: z.string().min(1, 'Required'), capacity: z.coerce.number().min(1, 'Min 1'), levelId: z.string().min(1, 'Required') });
+
+export default function ClassesPage() {
   const qc = useQueryClient();
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: getClasses });
-  const { data: levels = [] } = useQuery({ queryKey: ['levels'], queryFn: getLevels });
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', section: '', capacity: 30, levelId: '' });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<SchoolClass | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SchoolClass | null>(null);
 
-  const openNew = () => { setEditing(null); setForm({ name: '', section: '', capacity: 30, levelId: '' }); setOpen(true); };
-  const openEdit = (c: any) => { setEditing(c); setForm({ name: c.name, section: c.section, capacity: c.capacity, levelId: c.levelId }); setOpen(true); };
+  const { data: res, isLoading } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
 
-  const mutation = useMutation({
-    mutationFn: () => editing ? updateClass(editing.id, form) : createClass(form as any),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['classes'] }); toast.success(editing ? 'Updated' : 'Created'); setOpen(false); },
-  });
+  const createMut = useMutation({ mutationFn: (d: Partial<SchoolClass>) => classApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['classes'] }); setDialogOpen(false); toast.success('Class created'); } });
+  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => classApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['classes'] }); setDialogOpen(false); toast.success('Class updated'); } });
+  const deleteMut = useMutation({ mutationFn: (id: string) => classApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['classes'] }); toast.success('Class deleted'); } });
 
-  const del = useMutation({ mutationFn: deleteClass, onSuccess: () => { qc.invalidateQueries({ queryKey: ['classes'] }); toast.success('Deleted'); } });
-
-  const columns: Column[] = [
-    { key: 'name', label: 'Name', sortable: true },
-    { key: 'section', label: 'Section', sortable: true },
-    { key: 'capacity', label: 'Capacity', sortable: true },
-    { key: 'levelId', label: 'Level', sortable: true, render: (v) => levels.find((l: any) => l.id === v)?.name ?? '—' },
+  const columns: Column<SchoolClass>[] = [
+    { key: 'name', label: 'Name' },
+    { key: 'section', label: 'Section' },
+    { key: 'capacity', label: 'Capacity', render: c => String(c.capacity) },
+    { key: 'levelId', label: 'Level', render: c => levelsRes?.data?.find(l => l.id === c.levelId)?.name || c.levelId },
   ];
 
+  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: '', section: '', capacity: 30, levelId: '' } });
+  const resetForm = () => { form.reset({ name: editing?.name || '', section: editing?.section || '', capacity: editing?.capacity || 30, levelId: editing?.levelId || '' }); };
+  const handleSubmit = (data: any) => { editing ? updateMut.mutate({ id: editing.id, ...data }) : createMut.mutate(data); };
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Classes</h1><p className="text-muted-foreground">Manage school classes</p></div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Class</Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">Classes</h1><p className="text-muted-foreground">{res?.total ?? 0} classes</p></div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Class</Button>
       </div>
-      <DataTable columns={columns} data={classes} searchPlaceholder="Search classes..."
-        actions={row => (
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
-              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete class?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => del.mutate(row.id)}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
-      />
-      <Dialog open={open} onOpenChange={setOpen}>
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search classes..." onEdit={c => { setEditing(c); setDialogOpen(true); }} onDelete={c => setDeleteTarget(c)} exportFilename="classes" />
+      <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (o) resetForm(); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? 'Edit Class' : 'New Class'}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><Label>Section *</Label><Input value={form.section} onChange={e => setForm(f => ({ ...f, section: e.target.value }))} /></div>
-            <div><Label>Capacity</Label><Input type="number" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: +e.target.value }))} /></div>
-            <div><Label>Level *</Label>
-              <Select value={form.levelId} onValueChange={v => setForm(f => ({ ...f, levelId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
-                <SelectContent>{levels.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>{mutation.isPending ? 'Saving...' : 'Save'}</Button>
-            </div>
-          </div>
+          <DialogHeader><DialogTitle>{editing ? 'Edit Class' : 'Add Class'}</DialogTitle></DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="section" render={({ field }) => (<FormItem><FormLabel>Section *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="capacity" render={({ field }) => (<FormItem><FormLabel>Capacity *</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="levelId" render={({ field }) => (
+                <FormItem><FormLabel>Level *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger></FormControl>
+                  <SelectContent>{(levelsRes?.data || []).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select><FormMessage />
+                </FormItem>
+              )} />
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? 'Update' : 'Create'}</Button>
+              </div>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete class?</AlertDialogTitle><AlertDialogDescription>Permanently delete {deleteTarget?.name}?</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

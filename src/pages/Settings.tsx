@@ -1,144 +1,387 @@
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTemplate, updateTemplate } from '@/services/api';
-import { EntityType, FieldDefinition } from '@/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Plus, Trash2, Pencil, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { templateApi } from '@/services/api';
+import { settingsApi, type PredefinedSettings } from '@/services/settings-api';
+import { defaultTemplates } from '@/services/mock-data';
+import type { EntityType, FieldDefinition, FieldType, EntityTemplateConfig } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Save } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 
-const FIELD_TYPES = ['text', 'date', 'select', 'multi-select', 'file', 'number', 'email', 'phone', 'textarea'] as const;
-const entities: EntityType[] = ['student', 'teacher', 'parent', 'manager'];
+const BASE_FIELDS = ['firstname', 'lastname'];
+const FIELD_TYPES: FieldType[] = ['text', 'date', 'select', 'multi-select', 'file', 'number', 'email', 'phone', 'textarea'];
 
-const emptyField = (): FieldDefinition => ({
-  name: '', label: '', type: 'text', required: false, options: [], placeholder: '', defaultValue: '',
-  order: 0, visible: true, editable: true,
-});
+function SortableFieldCard({ field, onEdit, onDelete }: { field: FieldDefinition; onEdit: () => void; onDelete: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.name });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
-export default function Settings() {
-  const [tab, setTab] = useState<EntityType>('student');
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div><h1 className="text-2xl font-bold">Settings</h1><p className="text-muted-foreground">Configure entity field templates</p></div>
-      <Tabs value={tab} onValueChange={v => setTab(v as EntityType)}>
-        <TabsList>{entities.map(e => <TabsTrigger key={e} value={e} className="capitalize">{e}</TabsTrigger>)}</TabsList>
-        {entities.map(e => <TabsContent key={e} value={e}><TemplateEditor entityType={e} /></TabsContent>)}
+    <Card ref={setNodeRef} style={style} className="shadow-none">
+      <CardContent className="flex items-center gap-3 p-3">
+        <button {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground">
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-sm">{field.label}</span>
+            <Badge variant="secondary" className="text-xs">{field.type}</Badge>
+            {field.required && <Badge variant="destructive" className="text-xs">Required</Badge>}
+            {!field.visible && <Badge variant="outline" className="text-xs">Hidden</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground">{field.name}</p>
+        </div>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SettingsPage() {
+  const [settingsTab, setSettingsTab] = useState('templates');
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground">Configure templates and predefined lists.</p>
+      </div>
+
+      <Tabs value={settingsTab} onValueChange={setSettingsTab}>
+        <TabsList>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="predefined">Predefined Lists</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="templates">
+          <TemplatesTab />
+        </TabsContent>
+
+        <TabsContent value="predefined">
+          <PredefinedListsTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function TemplateEditor({ entityType }: { entityType: EntityType }) {
+function TemplatesTab() {
   const qc = useQueryClient();
-  const { data: template } = useQuery({ queryKey: ['template', entityType], queryFn: () => getTemplate(entityType) });
-  const [fields, setFields] = useState<FieldDefinition[]>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [draft, setDraft] = useState<FieldDefinition>(emptyField());
-  const [hasChanges, setHasChanges] = useState(false);
+  const [activeEntity, setActiveEntity] = useState<EntityType>('student');
+  const [localFields, setLocalFields] = useState<FieldDefinition[]>([]);
+  const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
+  const [editingField, setEditingField] = useState<FieldDefinition | null>(null);
+  const [deleteFieldName, setDeleteFieldName] = useState<string | null>(null);
 
-  useEffect(() => { if (template) { setFields([...template.fields]); setHasChanges(false); } }, [template]);
-
-  const save = useMutation({
-    mutationFn: () => updateTemplate(entityType, fields),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['template', entityType] }); toast.success('Template saved'); setHasChanges(false); },
+  const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
+  const saveMut = useMutation({
+    mutationFn: (config: EntityTemplateConfig) => templateApi.update(activeEntity, config),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); toast.success('Template saved'); },
   });
 
-  const openAdd = () => { setEditingIdx(null); setDraft({ ...emptyField(), order: fields.length + 1 }); setDialogOpen(true); };
-  const openEdit = (i: number) => { setEditingIdx(i); setDraft({ ...fields[i] }); setDialogOpen(true); };
+  useEffect(() => {
+    if (tplRes?.data) setLocalFields([...tplRes.data[activeEntity].fields]);
+  }, [tplRes, activeEntity]);
 
-  const saveField = () => {
-    if (!draft.name || !draft.label) { toast.error('Name and label required'); return; }
-    const newFields = [...fields];
-    if (editingIdx !== null) { newFields[editingIdx] = draft; }
-    else {
-      if (fields.some(f => f.name === draft.name)) { toast.error('Field name must be unique'); return; }
-      newFields.push(draft);
-    }
-    setFields(newFields);
-    setHasChanges(true);
-    setDialogOpen(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = sortedFields.findIndex(f => f.name === active.id);
+    const newIdx = sortedFields.findIndex(f => f.name === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const newFields = [...sortedFields];
+    const [moved] = newFields.splice(oldIdx, 1);
+    newFields.splice(newIdx, 0, moved);
+    newFields.forEach((f, i) => f.order = i + 1);
+    setLocalFields(newFields);
   };
 
-  const removeField = (i: number) => { setFields(f => f.filter((_, idx) => idx !== i)); setHasChanges(true); };
-  const moveUp = (i: number) => { if (i === 0) return; const n = [...fields]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; n.forEach((f, idx) => f.order = idx + 1); setFields(n); setHasChanges(true); };
-  const moveDown = (i: number) => { if (i >= fields.length - 1) return; const n = [...fields]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; n.forEach((f, idx) => f.order = idx + 1); setFields(n); setHasChanges(true); };
+  const handleSave = () => {
+    const config = tplRes?.data?.[activeEntity];
+    if (!config) return;
+    saveMut.mutate({ ...config, fields: localFields });
+  };
+
+  const addField = (field: FieldDefinition) => {
+    setLocalFields(prev => [...prev, { ...field, order: prev.length + 1 }]);
+    setFieldDialogOpen(false);
+  };
+
+  const updateField = (name: string, updated: FieldDefinition) => {
+    setLocalFields(prev => prev.map(f => f.name === name ? updated : f));
+    setFieldDialogOpen(false);
+  };
+
+  const removeField = (name: string) => {
+    setLocalFields(prev => prev.filter(f => f.name !== name));
+    setDeleteFieldName(null);
+  };
+
+  const sortedFields = [...localFields].sort((a, b) => a.order - b.order);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="capitalize">{entityType} Template</CardTitle>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Configure dynamic fields for each entity type. Drag to reorder.</p>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Add Field</Button>
-          <Button onClick={() => save.mutate()} disabled={!hasChanges || save.isPending}><Save className="h-4 w-4 mr-2" />{save.isPending ? 'Saving...' : 'Save'}</Button>
+          <Button variant="outline" onClick={() => { if (tplRes?.data) { const def = JSON.parse(JSON.stringify((defaultTemplates as any)[activeEntity].fields)); setLocalFields(def); toast.info('Reset to defaults — click Save to apply'); } }}>Reset to Default</Button>
+          <Button onClick={handleSave} disabled={saveMut.isPending}>{saveMut.isPending ? 'Saving...' : 'Save Template'}</Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        {fields.length === 0 ? <p className="text-muted-foreground text-center py-8">No fields configured. Add fields to customize the template.</p> : (
+      </div>
+
+      <Tabs value={activeEntity} onValueChange={v => setActiveEntity(v as EntityType)}>
+        <TabsList>
+          <TabsTrigger value="student">Student</TabsTrigger>
+          <TabsTrigger value="teacher">Teacher</TabsTrigger>
+          <TabsTrigger value="manager">Manager</TabsTrigger>
+          <TabsTrigger value="parent">Parent</TabsTrigger>
+        </TabsList>
+
+        {(['student', 'teacher', 'manager', 'parent'] as EntityType[]).map(entity => (
+          <TabsContent key={entity} value={entity} className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+                <GripVertical className="h-4 w-4 text-muted-foreground opacity-30" />
+                <span className="font-medium text-sm">firstname</span>
+                <Badge variant="secondary" className="text-xs">text</Badge>
+                <Badge variant="default" className="text-xs">Base Field</Badge>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+                <GripVertical className="h-4 w-4 text-muted-foreground opacity-30" />
+                <span className="font-medium text-sm">lastname</span>
+                <Badge variant="secondary" className="text-xs">text</Badge>
+                <Badge variant="default" className="text-xs">Base Field</Badge>
+              </div>
+              <Separator />
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={sortedFields.map(f => f.name)} strategy={verticalListSortingStrategy}>
+                  {sortedFields.map(field => (
+                    <SortableFieldCard
+                      key={field.name}
+                      field={field}
+                      onEdit={() => { setEditingField(field); setFieldDialogOpen(true); }}
+                      onDelete={() => setDeleteFieldName(field.name)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+            <Button variant="outline" onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Field</Button>
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      <FieldEditorDialog
+        open={fieldDialogOpen}
+        onOpenChange={setFieldDialogOpen}
+        field={editingField}
+        existingNames={localFields.map(f => f.name)}
+        onSave={(field) => editingField ? updateField(editingField.name, field) : addField(field)}
+      />
+
+      <AlertDialog open={!!deleteFieldName} onOpenChange={o => !o && setDeleteFieldName(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Remove field?</AlertDialogTitle><AlertDialogDescription>This will remove the "{deleteFieldName}" field from the template.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => removeField(deleteFieldName!)}>Remove</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function PredefinedListsTab() {
+  const qc = useQueryClient();
+  const { data: settingsRes } = useQuery({ queryKey: ['predefined-settings'], queryFn: () => settingsApi.getPredefined() });
+  const [sessions, setSessions] = useState<string[]>([]);
+  const [newSession, setNewSession] = useState('');
+
+  useEffect(() => {
+    if (settingsRes?.data) setSessions([...settingsRes.data.sessions]);
+  }, [settingsRes]);
+
+  const saveMut = useMutation({
+    mutationFn: (data: PredefinedSettings) => settingsApi.updatePredefined(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['predefined-settings'] }); toast.success('Predefined lists saved'); },
+  });
+
+  const addSession = () => {
+    if (!newSession.trim()) return;
+    if (sessions.includes(newSession.trim())) { toast.error('Session already exists'); return; }
+    setSessions(prev => [...prev, newSession.trim()]);
+    setNewSession('');
+  };
+
+  const removeSession = (idx: number) => {
+    setSessions(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSave = () => {
+    saveMut.mutate({ sessions });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Configure predefined lists used across the application.</p>
+        <Button onClick={handleSave} disabled={saveMut.isPending}>{saveMut.isPending ? 'Saving...' : 'Save Settings'}</Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Session Numbers</CardTitle>
+          <p className="text-sm text-muted-foreground">Define the session options available for teacher attendance tracking.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
-            {fields.map((f, i) => (
-              <div key={f.name + i} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/30">
-                <div className="flex flex-col gap-1"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveUp(i)}><ArrowUp className="h-3 w-3" /></Button><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveDown(i)}><ArrowDown className="h-3 w-3" /></Button></div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2"><span className="font-medium text-sm">{f.label}</span><Badge variant="secondary" className="text-xs">{f.type}</Badge>{f.required && <Badge className="text-xs">Required</Badge>}{!f.visible && <Badge variant="outline" className="text-xs">Hidden</Badge>}</div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{f.name}</p>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => openEdit(i)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => removeField(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            {sessions.map((session, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Input
+                  value={session}
+                  onChange={e => setSessions(prev => prev.map((s, i) => i === idx ? e.target.value : s))}
+                  className="flex-1"
+                />
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeSession(idx)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             ))}
           </div>
-        )}
-      </CardContent>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-auto">
-          <DialogHeader><DialogTitle>{editingIdx !== null ? 'Edit Field' : 'Add Field'}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div><Label>Field Name *</Label><Input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value.replace(/\s/g, '') }))} placeholder="fieldName" disabled={editingIdx !== null} /></div>
-              <div><Label>Display Label *</Label><Input value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} placeholder="Display Label" /></div>
+          <div className="flex gap-2">
+            <Input
+              value={newSession}
+              onChange={e => setNewSession(e.target.value)}
+              placeholder="e.g. Session 9 - 17:00"
+              onKeyDown={e => e.key === 'Enter' && addSession()}
+            />
+            <Button variant="outline" onClick={addSession}><Plus className="mr-2 h-4 w-4" />Add</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function FieldEditorDialog({ open, onOpenChange, field, existingNames, onSave }: { open: boolean; onOpenChange: (o: boolean) => void; field: FieldDefinition | null; existingNames: string[]; onSave: (f: FieldDefinition) => void }) {
+  const [name, setName] = useState('');
+  const [label, setLabel] = useState('');
+  const [type, setType] = useState<FieldType>('text');
+  const [required, setRequired] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [editable, setEditable] = useState(true);
+  const [placeholder, setPlaceholder] = useState('');
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      if (field) {
+        setName(field.name); setLabel(field.label); setType(field.type); setRequired(field.required);
+        setVisible(field.visible); setEditable(field.editable); setPlaceholder(field.placeholder || '');
+        setOptions(field.options || []);
+      } else {
+        setName(''); setLabel(''); setType('text'); setRequired(false); setVisible(true);
+        setEditable(true); setPlaceholder(''); setOptions([]);
+      }
+      setError('');
+    }
+  }, [open, field]);
+
+  const handleSave = () => {
+    if (!name.trim()) { setError('Name is required'); return; }
+    if (!label.trim()) { setError('Label is required'); return; }
+    if (/\s/.test(name)) { setError('Name cannot contain spaces'); return; }
+    if (BASE_FIELDS.includes(name)) { setError('Cannot use base field name'); return; }
+    if (!field && existingNames.includes(name)) { setError('Name already exists'); return; }
+    if ((type === 'select' || type === 'multi-select') && options.length === 0) { setError('Add at least one option'); return; }
+
+    onSave({
+      name: name.trim(), label: label.trim(), type, required, visible, editable,
+      placeholder: placeholder.trim(), order: field?.order || 999,
+      options: (type === 'select' || type === 'multi-select') ? options : undefined,
+    });
+  };
+
+  const addOption = () => setOptions(prev => [...prev, { value: '', label: '' }]);
+  const updateOption = (idx: number, key: 'value' | 'label', val: string) => {
+    setOptions(prev => prev.map((o, i) => i === idx ? { ...o, [key]: val } : o));
+  };
+  const removeOption = (idx: number) => setOptions(prev => prev.filter((_, i) => i !== idx));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{field ? 'Edit Field' : 'Add Field'}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Field Name *</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="field_name" disabled={!!field} />
             </div>
-            <div><Label>Field Type</Label>
-              <Select value={draft.type} onValueChange={v => setDraft(d => ({ ...d, type: v as any }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{FIELD_TYPES.map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Placeholder</Label><Input value={draft.placeholder || ''} onChange={e => setDraft(d => ({ ...d, placeholder: e.target.value }))} /></div>
-            <div className="flex items-center justify-between"><Label>Required</Label><Switch checked={draft.required} onCheckedChange={v => setDraft(d => ({ ...d, required: v }))} /></div>
-            <div className="flex items-center justify-between"><Label>Visible</Label><Switch checked={draft.visible} onCheckedChange={v => setDraft(d => ({ ...d, visible: v }))} /></div>
-            <div className="flex items-center justify-between"><Label>Editable</Label><Switch checked={draft.editable} onCheckedChange={v => setDraft(d => ({ ...d, editable: v }))} /></div>
-            {(draft.type === 'select' || draft.type === 'multi-select') && (
-              <div>
-                <Label>Options</Label>
-                <div className="space-y-2 mt-2">
-                  {(draft.options || []).map((opt, oi) => (
-                    <div key={oi} className="flex gap-2">
-                      <Input placeholder="Value" value={opt.value} onChange={e => { const opts = [...(draft.options || [])]; opts[oi] = { ...opts[oi], value: e.target.value }; setDraft(d => ({ ...d, options: opts })); }} />
-                      <Input placeholder="Label" value={opt.label} onChange={e => { const opts = [...(draft.options || [])]; opts[oi] = { ...opts[oi], label: e.target.value }; setDraft(d => ({ ...d, options: opts })); }} />
-                      <Button variant="ghost" size="icon" onClick={() => { setDraft(d => ({ ...d, options: d.options?.filter((_, idx) => idx !== oi) })); }}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  ))}
-                  <Button variant="outline" size="sm" onClick={() => setDraft(d => ({ ...d, options: [...(d.options || []), { value: '', label: '' }] }))}>
-                    <Plus className="h-3 w-3 mr-1" />Add Option
-                  </Button>
-                </div>
-              </div>
-            )}
-            <div className="flex gap-2 justify-end pt-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={saveField}>Save Field</Button>
+            <div className="space-y-2">
+              <Label>Display Label *</Label>
+              <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Field Label" />
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-    </Card>
+          <div className="space-y-2">
+            <Label>Field Type</Label>
+            <Select value={type} onValueChange={v => setType(v as FieldType)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{FIELD_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Placeholder</Label>
+            <Input value={placeholder} onChange={e => setPlaceholder(e.target.value)} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label>Required</Label><Switch checked={required} onCheckedChange={setRequired} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label>Visible</Label><Switch checked={visible} onCheckedChange={setVisible} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label>Editable</Label><Switch checked={editable} onCheckedChange={setEditable} />
+          </div>
+          {(type === 'select' || type === 'multi-select') && (
+            <div className="space-y-2">
+              <Label>Options</Label>
+              <div className="space-y-2">
+                {options.map((opt, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input placeholder="Value" value={opt.value} onChange={e => updateOption(i, 'value', e.target.value)} className="flex-1" />
+                    <Input placeholder="Label" value={opt.label} onChange={e => updateOption(i, 'label', e.target.value)} className="flex-1" />
+                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeOption(i)}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={addOption}><Plus className="mr-1 h-3 w-3" />Add Option</Button>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{field ? 'Update' : 'Add'} Field</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

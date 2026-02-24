@@ -1,195 +1,107 @@
-import { API_CONFIG } from '@/config';
-import { mockStore, generateId } from './mock-data';
-import { EntityType, FieldDefinition, EntityTemplateConfig, Level, SchoolClass, Subject } from '@/types';
+import { APP_CONFIG } from '@/config';
+import type { ApiResponse, PaginatedResponse, PaginationParams, Student, Teacher, Parent, Manager, SchoolClass, Level, Subject, TemplateConfig, EntityType, EntityTemplateConfig } from '@/types';
+import { defaultTemplates, initialStudents, initialTeachers, initialParents, initialManagers, initialClasses, initialLevels, initialSubjects } from './mock-data';
 
-const delay = () => new Promise(r => setTimeout(r, API_CONFIG.MOCK_DELAY));
+const delay = () => new Promise(r => setTimeout(r, APP_CONFIG.MOCK_DELAY));
+let idCounter = 100;
+const genId = (prefix: string) => `${prefix}-${++idCounter}`;
 
-// ─── Templates ───
-export async function getTemplate(entityType: EntityType): Promise<EntityTemplateConfig> {
-  await delay();
-  return JSON.parse(JSON.stringify(mockStore.templates[entityType]));
-}
-
-export async function updateTemplate(entityType: EntityType, fields: FieldDefinition[]): Promise<EntityTemplateConfig> {
-  await delay();
-  mockStore.templates[entityType] = {
-    fields,
-    version: mockStore.templates[entityType].version + 1,
-    lastUpdated: new Date().toISOString(),
-  };
-  return JSON.parse(JSON.stringify(mockStore.templates[entityType]));
-}
-
-// ─── Generic Entity CRUD ───
-type StoreKey = 'students' | 'teachers' | 'parents' | 'managers';
-const entityStoreMap: Record<EntityType, StoreKey> = {
-  student: 'students', teacher: 'teachers', parent: 'parents', manager: 'managers',
+// In-memory stores
+let store: Record<string, any[]> = {
+  students: [...initialStudents],
+  teachers: [...initialTeachers],
+  parents: [...initialParents],
+  managers: [...initialManagers],
+  classes: [...initialClasses],
+  levels: [...initialLevels],
+  subjects: [...initialSubjects],
 };
+let templates: TemplateConfig = JSON.parse(JSON.stringify(defaultTemplates));
 
-export async function getEntities(type: EntityType) {
-  await delay();
-  return JSON.parse(JSON.stringify(mockStore[entityStoreMap[type]]));
+function searchFilter<T extends Record<string, any>>(items: T[], search?: string): T[] {
+  if (!search) return items;
+  const q = search.toLowerCase();
+  return items.filter(item =>
+    Object.values(item).some(val => {
+      if (typeof val === 'string') return val.toLowerCase().includes(q);
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        return Object.values(val).some(v => typeof v === 'string' && (v as string).toLowerCase().includes(q));
+      }
+      return false;
+    })
+  );
 }
 
-export async function getEntityById(type: EntityType, id: string) {
-  await delay();
-  const store = mockStore[entityStoreMap[type]];
-  const entity = store.find((e: any) => e.id === id);
-  if (!entity) throw new Error(`${type} not found`);
-  return JSON.parse(JSON.stringify(entity));
-}
-
-export async function createEntity(type: EntityType, data: any) {
-  await delay();
-  const now = new Date().toISOString();
-  const store = mockStore[entityStoreMap[type]] as any[];
-  const id = type === 'student' ? `STU${String(store.length + 1).padStart(3, '0')}` : generateId();
-  const entity = { ...data, id, createdAt: now, updatedAt: now };
-  store.push(entity);
-  return JSON.parse(JSON.stringify(entity));
-}
-
-export async function updateEntity(type: EntityType, id: string, data: any) {
-  await delay();
-  const store = mockStore[entityStoreMap[type]] as any[];
-  const idx = store.findIndex((e: any) => e.id === id);
-  if (idx === -1) throw new Error(`${type} not found`);
-  store[idx] = { ...store[idx], ...data, updatedAt: new Date().toISOString() };
-  return JSON.parse(JSON.stringify(store[idx]));
-}
-
-export async function deleteEntity(type: EntityType, id: string) {
-  await delay();
-  const key = entityStoreMap[type];
-  const store = mockStore[key] as any[];
-  const idx = store.findIndex((e: any) => e.id === id);
-  if (idx === -1) throw new Error(`${type} not found`);
-  store.splice(idx, 1);
-  return { success: true };
-}
-
-// ─── Levels ───
-export async function getLevels(): Promise<Level[]> {
-  await delay();
-  return JSON.parse(JSON.stringify(mockStore.levels));
-}
-
-export async function createLevel(data: Omit<Level, 'id'>): Promise<Level> {
-  await delay();
-  const level = { ...data, id: generateId() };
-  mockStore.levels.push(level);
-  return JSON.parse(JSON.stringify(level));
-}
-
-export async function updateLevel(id: string, data: Partial<Level>): Promise<Level> {
-  await delay();
-  const idx = mockStore.levels.findIndex(l => l.id === id);
-  if (idx === -1) throw new Error('Level not found');
-  mockStore.levels[idx] = { ...mockStore.levels[idx], ...data };
-  return JSON.parse(JSON.stringify(mockStore.levels[idx]));
-}
-
-export async function deleteLevel(id: string) {
-  await delay();
-  const idx = mockStore.levels.findIndex(l => l.id === id);
-  if (idx === -1) throw new Error('Level not found');
-  mockStore.levels.splice(idx, 1);
-  return { success: true };
-}
-
-// ─── Classes ───
-export async function getClasses(): Promise<SchoolClass[]> {
-  await delay();
-  return JSON.parse(JSON.stringify(mockStore.classes));
-}
-
-export async function createClass(data: Omit<SchoolClass, 'id'>): Promise<SchoolClass> {
-  await delay();
-  const cls = { ...data, id: generateId() };
-  mockStore.classes.push(cls);
-  return JSON.parse(JSON.stringify(cls));
-}
-
-export async function updateClass(id: string, data: Partial<SchoolClass>): Promise<SchoolClass> {
-  await delay();
-  const idx = mockStore.classes.findIndex(c => c.id === id);
-  if (idx === -1) throw new Error('Class not found');
-  mockStore.classes[idx] = { ...mockStore.classes[idx], ...data };
-  return JSON.parse(JSON.stringify(mockStore.classes[idx]));
-}
-
-export async function deleteClass(id: string) {
-  await delay();
-  const idx = mockStore.classes.findIndex(c => c.id === id);
-  if (idx === -1) throw new Error('Class not found');
-  mockStore.classes.splice(idx, 1);
-  return { success: true };
-}
-
-// ─── Subjects ───
-export async function getSubjects(): Promise<Subject[]> {
-  await delay();
-  return JSON.parse(JSON.stringify(mockStore.subjects));
-}
-
-export async function createSubject(data: Omit<Subject, 'id'>): Promise<Subject> {
-  await delay();
-  const subj = { ...data, id: generateId() };
-  mockStore.subjects.push(subj);
-  return JSON.parse(JSON.stringify(subj));
-}
-
-export async function updateSubject(id: string, data: Partial<Subject>): Promise<Subject> {
-  await delay();
-  const idx = mockStore.subjects.findIndex(s => s.id === id);
-  if (idx === -1) throw new Error('Subject not found');
-  mockStore.subjects[idx] = { ...mockStore.subjects[idx], ...data };
-  return JSON.parse(JSON.stringify(mockStore.subjects[idx]));
-}
-
-export async function deleteSubject(id: string) {
-  await delay();
-  const idx = mockStore.subjects.findIndex(s => s.id === id);
-  if (idx === -1) throw new Error('Subject not found');
-  mockStore.subjects.splice(idx, 1);
-  return { success: true };
-}
-
-// ─── Search ───
-export async function globalSearch(query: string) {
-  await delay();
-  const q = query.toLowerCase();
-  const results: { type: EntityType; id: string; name: string; extra?: string }[] = [];
-
-  mockStore.students.forEach(s => {
-    if (`${s.firstname} ${s.lastname}`.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)) {
-      results.push({ type: 'student', id: s.id, name: `${s.firstname} ${s.lastname}`, extra: s.id });
-    }
+function sortItems<T extends Record<string, any>>(items: T[], sortBy?: string, sortOrder?: 'asc' | 'desc'): T[] {
+  if (!sortBy) return items;
+  return [...items].sort((a, b) => {
+    const aVal = String(a[sortBy] ?? a.dynamicFields?.[sortBy] ?? '');
+    const bVal = String(b[sortBy] ?? b.dynamicFields?.[sortBy] ?? '');
+    return sortOrder === 'desc' ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
   });
-  mockStore.teachers.forEach(t => {
-    if (`${t.firstname} ${t.lastname}`.toLowerCase().includes(q)) {
-      results.push({ type: 'teacher', id: t.id, name: `${t.firstname} ${t.lastname}` });
-    }
-  });
-  mockStore.managers.forEach(m => {
-    if (`${m.firstname} ${m.lastname}`.toLowerCase().includes(q)) {
-      results.push({ type: 'manager', id: m.id, name: `${m.firstname} ${m.lastname}` });
-    }
-  });
-
-  return results;
 }
 
-// ─── Stats ───
-export async function getDashboardStats() {
-  await delay();
+function createCrudService<T extends { id: string }>(key: string, prefix: string) {
   return {
-    students: mockStore.students.length,
-    teachers: mockStore.teachers.length,
-    parents: mockStore.parents.length,
-    managers: mockStore.managers.length,
-    classes: mockStore.classes.length,
-    levels: mockStore.levels.length,
-    subjects: mockStore.subjects.length,
+    getAll: async (params: PaginationParams): Promise<PaginatedResponse<T>> => {
+      await delay();
+      let items = searchFilter(store[key] as T[], params.search);
+      items = sortItems(items, params.sortBy, params.sortOrder);
+      const total = items.length;
+      const totalPages = Math.ceil(total / params.limit);
+      const start = (params.page - 1) * params.limit;
+      const data = items.slice(start, start + params.limit);
+      return { data, total, page: params.page, limit: params.limit, totalPages, message: 'Success', success: true, statusCode: 200 };
+    },
+    getById: async (id: string): Promise<ApiResponse<T | null>> => {
+      await delay();
+      const item = (store[key] as T[]).find(i => i.id === id) || null;
+      return { data: item, message: item ? 'Success' : 'Not found', success: !!item, statusCode: item ? 200 : 404 };
+    },
+    create: async (data: Partial<T>): Promise<ApiResponse<T>> => {
+      await delay();
+      const newItem = { ...data, id: genId(prefix), createdAt: new Date().toISOString() } as unknown as T;
+      store[key] = [...store[key], newItem];
+      return { data: newItem, message: 'Created successfully', success: true, statusCode: 201 };
+    },
+    update: async (id: string, data: Partial<T>): Promise<ApiResponse<T>> => {
+      await delay();
+      const items = store[key] as T[];
+      const idx = items.findIndex(i => i.id === id);
+      if (idx === -1) return { data: null as any, message: 'Not found', success: false, statusCode: 404 };
+      items[idx] = { ...items[idx], ...data };
+      store[key] = [...items];
+      return { data: items[idx], message: 'Updated successfully', success: true, statusCode: 200 };
+    },
+    delete: async (id: string): Promise<ApiResponse<null>> => {
+      await delay();
+      store[key] = (store[key] as T[]).filter(i => i.id !== id);
+      return { data: null, message: 'Deleted successfully', success: true, statusCode: 200 };
+    },
   };
 }
+
+export const studentApi = createCrudService<Student>('students', 'stu');
+export const teacherApi = createCrudService<Teacher>('teachers', 'tea');
+export const parentApi = createCrudService<Parent>('parents', 'par');
+export const managerApi = createCrudService<Manager>('managers', 'mgr');
+export const classApi = createCrudService<SchoolClass>('classes', 'cls');
+export const levelApi = createCrudService<Level>('levels', 'lvl');
+export const subjectApi = createCrudService<Subject>('subjects', 'sub');
+
+export const templateApi = {
+  get: async (): Promise<ApiResponse<TemplateConfig>> => {
+    await delay();
+    return { data: JSON.parse(JSON.stringify(templates)), message: 'Success', success: true, statusCode: 200 };
+  },
+  update: async (entityType: EntityType, config: EntityTemplateConfig): Promise<ApiResponse<EntityTemplateConfig>> => {
+    await delay();
+    templates[entityType] = { ...config, version: config.version + 1, lastUpdated: new Date().toISOString() };
+    return { data: templates[entityType], message: 'Template updated', success: true, statusCode: 200 };
+  },
+  reset: async (entityType: EntityType): Promise<ApiResponse<EntityTemplateConfig>> => {
+    await delay();
+    templates[entityType] = JSON.parse(JSON.stringify(defaultTemplates[entityType]));
+    return { data: templates[entityType], message: 'Template reset', success: true, statusCode: 200 };
+  },
+};

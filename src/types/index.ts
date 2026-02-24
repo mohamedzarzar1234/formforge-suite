@@ -1,7 +1,9 @@
+export type FieldType = 'text' | 'date' | 'select' | 'multi-select' | 'file' | 'number' | 'email' | 'phone' | 'textarea';
+
 export interface FieldDefinition {
   name: string;
   label: string;
-  type: 'text' | 'date' | 'select' | 'multi-select' | 'file' | 'number' | 'email' | 'phone' | 'textarea';
+  type: FieldType;
   required: boolean;
   options?: { value: string; label: string }[];
   validation?: { min?: number; max?: number; pattern?: string; customMessage?: string };
@@ -18,37 +20,58 @@ export interface EntityTemplateConfig {
   lastUpdated: string;
 }
 
-export type EntityType = 'student' | 'teacher' | 'parent' | 'manager';
+export interface TemplateConfig {
+  student: EntityTemplateConfig;
+  teacher: EntityTemplateConfig;
+  manager: EntityTemplateConfig;
+  parent: EntityTemplateConfig;
+}
 
-export interface BaseEntity {
+export type EntityType = 'student' | 'teacher' | 'manager' | 'parent';
+
+export interface Student {
   id: string;
   firstname: string;
   lastname: string;
-  createdAt: string;
-  updatedAt: string;
-  [key: string]: any;
-}
-
-export interface Student extends BaseEntity {
-  levelId?: string;
-  classId?: string;
   parentIds: string[];
   defaultParentId?: string;
+  classId?: string;
+  levelId: string;
+  dynamicFields: Record<string, any>;
+  createdAt: string;
 }
 
-export interface Teacher extends BaseEntity {
+export interface ClassAssignment {
+  classId: string;
   subjectIds: string[];
-  classIds: string[];
-  photo?: string;
 }
 
-export interface Parent extends BaseEntity {
+export interface Teacher {
+  id: string;
+  firstname: string;
+  lastname: string;
+  subjectIds: string[];
+  classAssignments: ClassAssignment[];
+  dynamicFields: Record<string, any>;
+  createdAt: string;
+}
+
+export interface Parent {
+  id: string;
+  firstname: string;
+  lastname: string;
   studentIds: string[];
+  dynamicFields: Record<string, any>;
+  createdAt: string;
 }
 
-export interface Manager extends BaseEntity {
+export interface Manager {
+  id: string;
+  firstname: string;
+  lastname: string;
   classIds: string[];
-  photo?: string;
+  dynamicFields: Record<string, any>;
+  createdAt: string;
 }
 
 export interface SchoolClass {
@@ -76,11 +99,24 @@ export interface ApiResponse<T> {
   data: T;
   message: string;
   success: boolean;
+  statusCode: number;
 }
 
-export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+export interface PaginatedResponse<T> {
+  data: T[];
+  message: string;
+  success: boolean;
+  statusCode: number;
   total: number;
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface PaginationParams {
+  page: number;
+  limit: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }

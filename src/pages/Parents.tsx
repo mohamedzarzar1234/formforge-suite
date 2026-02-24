@@ -1,81 +1,133 @@
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEntities, getTemplate, createEntity, updateEntity, deleteEntity } from '@/services/api';
-import { DataTable, Column } from '@/components/DataTable';
-import { DynamicForm } from '@/components/dynamic-form/DynamicForm';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { Plus } from 'lucide-react';
+import { parentApi, templateApi } from '@/services/api';
+import { buildDynamicSchema, getDynamicDefaults } from '@/lib/schema-builder';
+import type { Parent } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DataTable, type Column } from '@/components/DataTable';
+import { DynamicFormFields } from '@/components/DynamicFormFields';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 
-export default function Parents() {
-  const nav = useNavigate();
+export default function ParentsPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: parents = [] } = useQuery({ queryKey: ['parents'], queryFn: () => getEntities('parent') });
-  const { data: template } = useQuery({ queryKey: ['template', 'parent'], queryFn: () => getTemplate('parent') });
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [firstname, setFirstname] = useState('');
-  const [lastname, setLastname] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Parent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Parent | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
-  const openNew = () => { setEditing(null); setFirstname(''); setLastname(''); setOpen(true); };
-  const openEdit = (p: any) => { setEditing(p); setFirstname(p.firstname); setLastname(p.lastname); setOpen(true); };
+  const { data: res, isLoading } = useQuery({ queryKey: ['parents'], queryFn: () => parentApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
+  const fields = tplRes?.data?.parent?.fields || [];
 
-  const mutation = useMutation({
-    mutationFn: (data: any) => {
-      const payload = { ...data, firstname, lastname, studentIds: editing?.studentIds || [] };
-      return editing ? updateEntity('parent', editing.id, payload) : createEntity('parent', payload);
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); toast.success(editing ? 'Updated' : 'Created'); setOpen(false); },
-  });
+  const createMut = useMutation({ mutationFn: (d: Partial<Parent>) => parentApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); setDialogOpen(false); toast.success('Parent created'); } });
+  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => parentApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); setDialogOpen(false); toast.success('Parent updated'); } });
+  const deleteMut = useMutation({ mutationFn: (id: string) => parentApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); toast.success('Parent deleted'); } });
 
-  const del = useMutation({ mutationFn: (id: string) => deleteEntity('parent', id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); toast.success('Deleted'); } });
+  const columns: Column<Parent>[] = useMemo(() => [
+    { key: 'firstname', label: 'First Name' },
+    { key: 'lastname', label: 'Last Name' },
+    { key: 'studentIds', label: 'Children', render: p => `${p.studentIds.length} student(s)` },
+    ...fields.filter(f => f.visible).slice(0, 2).map(f => ({ key: f.name, label: f.label, render: (p: Parent) => String(p.dynamicFields?.[f.name] ?? '—') })),
+  ], [fields]);
 
-  const columns: Column[] = [
-    { key: 'firstname', label: 'First Name', sortable: true },
-    { key: 'lastname', label: 'Last Name', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'phone', label: 'Phone' },
-  ];
+  const handleSubmit = (data: any) => { const { firstname, lastname, ...rest } = data; const payload = { firstname, lastname, studentIds: editing?.studentIds || [], dynamicFields: rest }; editing ? updateMut.mutate({ id: editing.id, ...payload }) : createMut.mutate(payload); };
+
+  const handleImport = (rows: Record<string, string>[]) => {
+    let count = 0;
+    rows.forEach(row => {
+      const p: Partial<Parent> = { firstname: row['First Name'] || row['firstname'] || '', lastname: row['Last Name'] || row['lastname'] || '', studentIds: [], dynamicFields: {} };
+      if (p.firstname && p.lastname) { createMut.mutate(p); count++; }
+    });
+    toast.success(`Imported ${count} parents`);
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Parents</h1><p className="text-muted-foreground">Manage parent records</p></div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Parent</Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">Parents</h1><p className="text-muted-foreground">{res?.total ?? 0} parents</p></div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Parent</Button>
       </div>
-      <DataTable columns={columns} data={parents} searchPlaceholder="Search parents..."
-        actions={row => (
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" onClick={() => nav(`/parents/${row.id}`)}><Eye className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
-              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete parent?</AlertDialogTitle><AlertDialogDescription>This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => del.mutate(row.id)}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
-      />
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
-          <DialogHeader><DialogTitle>{editing ? 'Edit Parent' : 'New Parent'}</DialogTitle></DialogHeader>
-          {template && (
-            <DynamicForm fields={template.fields} initialData={editing} onSubmit={d => mutation.mutate(d)} onCancel={() => setOpen(false)} isLoading={mutation.isPending}
-              extraFieldsBefore={
-                <div className="grid gap-4 md:grid-cols-2 pb-4 border-b mb-4">
-                  <div><Label>First Name *</Label><Input value={firstname} onChange={e => setFirstname(e.target.value)} required /></div>
-                  <div><Label>Last Name *</Label><Input value={lastname} onChange={e => setLastname(e.target.value)} required /></div>
-                </div>
-              }
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search parents..." onView={p => navigate(`/parents/${p.id}`)} onEdit={p => { setEditing(p); setDialogOpen(true); }} onDelete={p => setDeleteTarget(p)} exportFilename="parents" onImportClick={() => setImportOpen(true)} />
+      <SimpleEntityDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={handleSubmit} title="Parent" />
+      <ExcelImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={handleImport} expectedColumns={['First Name', 'Last Name']} />
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete parent?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {deleteTarget?.firstname} {deleteTarget?.lastname}.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+
+function SimpleEntityDialog({ open, onOpenChange, editing, fields, isSubmitting, onSubmit, title }: any) {
+  const schema = z.object({
+    firstname: z.string().min(1, 'Required'),
+    lastname: z.string().min(1, 'Required'),
+    ...buildDynamicSchema(fields)
+  });
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      firstname: '',
+      lastname: '',
+      ...getDynamicDefaults(fields)
+    }
+  });
+
+  // Reset form when dialog opens or when editing/fields change
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        firstname: editing?.firstname || '',
+        lastname: editing?.lastname || '',
+        ...getDynamicDefaults(fields, editing?.dynamicFields)
+      });
+    }
+  }, [open, editing, fields, form]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? `Edit ${title}` : `Add ${title}`}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="firstname" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First Name *</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="lastname" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Last Name *</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <DynamicFormFields fields={fields} control={form.control} />
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }

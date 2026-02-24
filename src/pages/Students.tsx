@@ -1,117 +1,323 @@
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEntities, deleteEntity, getTemplate, getLevels, getClasses, createEntity, updateEntity } from '@/services/api';
-import { DataTable, Column } from '@/components/DataTable';
-import { DynamicForm } from '@/components/dynamic-form/DynamicForm';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { Plus, Check, ChevronsUpDown } from 'lucide-react';
+import { studentApi, parentApi, levelApi, classApi, templateApi } from '@/services/api';
+import { buildDynamicSchema, getDynamicDefaults } from '@/lib/schema-builder';
+import type { Student } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
+import { DataTable, type Column } from '@/components/DataTable';
+import { DynamicFormFields } from '@/components/DynamicFormFields';
+import { InlineParentCreate } from '@/components/InlineCreateDialog';
+import { PhotoUpload } from '@/components/PhotoUpload';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { cn } from '@/lib/utils';
 
-export default function Students() {
-  const nav = useNavigate();
+export default function StudentsPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: students = [], isLoading } = useQuery({ queryKey: ['students'], queryFn: () => getEntities('student') });
-  const { data: template } = useQuery({ queryKey: ['template', 'student'], queryFn: () => getTemplate('student') });
-  const { data: levels = [] } = useQuery({ queryKey: ['levels'], queryFn: getLevels });
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: getClasses });
-  const { data: parents = [] } = useQuery({ queryKey: ['parents'], queryFn: () => getEntities('parent') });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Student | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
+  const { data: studentsRes, isLoading } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
+  const { data: parentsRes } = useQuery({ queryKey: ['parents'], queryFn: () => parentApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: classesRes } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
 
-  const [firstname, setFirstname] = useState('');
-  const [lastname, setLastname] = useState('');
-  const [levelId, setLevelId] = useState('');
-  const [classId, setClassId] = useState('');
-  const [parentIds, setParentIds] = useState<string[]>([]);
-  const [defaultParentId, setDefaultParentId] = useState('');
+  const template = tplRes?.data?.student;
+  const fields = template?.fields || [];
 
-  const openNew = () => { setEditing(null); setFirstname(''); setLastname(''); setLevelId(''); setClassId(''); setParentIds([]); setDefaultParentId(''); setFormOpen(true); };
-  const openEdit = (s: any) => { setEditing(s); setFirstname(s.firstname); setLastname(s.lastname); setLevelId(s.levelId || ''); setClassId(s.classId || ''); setParentIds(s.parentIds || []); setDefaultParentId(s.defaultParentId || ''); setFormOpen(true); };
-
-  const filteredClasses = classes.filter((c: any) => !levelId || c.levelId === levelId);
-
-  const mutation = useMutation({
-    mutationFn: (data: any) => {
-      const payload = { ...data, firstname, lastname, levelId, classId, parentIds, defaultParentId: defaultParentId || parentIds[0] || '' };
-      return editing ? updateEntity('student', editing.id, payload) : createEntity('student', payload);
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); toast.success(editing ? 'Student updated' : 'Student created'); setFormOpen(false); },
-    onError: () => toast.error('Failed to save student'),
+  const createMut = useMutation({
+    mutationFn: (d: Partial<Student>) => studentApi.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); setDialogOpen(false); toast.success('Student created'); },
   });
-
-  const del = useMutation({
-    mutationFn: (id: string) => deleteEntity('student', id),
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...d }: any) => studentApi.update(id, d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); setDialogOpen(false); toast.success('Student updated'); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => studentApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); toast.success('Student deleted'); },
   });
 
-  const levelName = (id?: string) => levels.find((l: any) => l.id === id)?.name ?? '—';
-  const clsName = (id?: string) => classes.find((c: any) => c.id === id)?.name ?? '—';
+  const columns: Column<Student>[] = useMemo(() => {
+    const base: Column<Student>[] = [
+      { key: 'id', label: 'ID' },
+      { key: 'firstname', label: 'First Name' },
+      { key: 'lastname', label: 'Last Name' },
+      { key: 'levelId', label: 'Level', render: s => levelsRes?.data?.find(l => l.id === s.levelId)?.name || s.levelId },
+      { key: 'classId', label: 'Class', render: s => classesRes?.data?.find(c => c.id === s.classId)?.name || s.classId || '—' },
+    ];
+    const dynamic = fields.filter(f => f.visible).slice(0, 3).map(f => ({
+      key: f.name, label: f.label, render: (s: Student) => String(s.dynamicFields?.[f.name] ?? '—'),
+    }));
+    return [...base, ...dynamic];
+  }, [fields, levelsRes, classesRes]);
 
-  const columns: Column[] = [
-    { key: 'id', label: 'ID', sortable: true },
-    { key: 'firstname', label: 'First Name', sortable: true },
-    { key: 'lastname', label: 'Last Name', sortable: true },
-    { key: 'levelId', label: 'Level', sortable: true, render: (v) => levelName(v) },
-    { key: 'classId', label: 'Class', sortable: true, render: (v) => clsName(v) },
-  ];
+  const handleImport = (rows: Record<string, string>[]) => {
+    let count = 0;
+    rows.forEach(row => {
+      const student: Partial<Student> = {
+        firstname: row['First Name'] || row['firstname'] || '',
+        lastname: row['Last Name'] || row['lastname'] || '',
+        levelId: row['levelId'] || '',
+        classId: row['classId'] || '',
+        parentIds: [],
+        dynamicFields: {},
+      };
+      if (student.firstname && student.lastname) {
+        createMut.mutate(student);
+        count++;
+      }
+    });
+    toast.success(`Imported ${count} students`);
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Students</h1><p className="text-muted-foreground">Manage student records</p></div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Add Student</Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Students</h1>
+          <p className="text-muted-foreground">{studentsRes?.total ?? 0} students</p>
+        </div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Student</Button>
       </div>
-      {isLoading ? <p>Loading...</p> : (
-        <DataTable columns={columns} data={students} searchPlaceholder="Search students..."
-          onRowClick={r => nav(`/students/${r.id}`)}
-          actions={row => (
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" onClick={() => nav(`/students/${row.id}`)}><Eye className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader><AlertDialogTitle>Delete student?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                  <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => del.mutate(row.id)}>Delete</AlertDialogAction></AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )}
-        />
-      )}
-
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
-          <DialogHeader><DialogTitle>{editing ? 'Edit Student' : 'New Student'}</DialogTitle></DialogHeader>
-          {template && (
-            <DynamicForm fields={template.fields} initialData={editing} onSubmit={d => mutation.mutate(d)} onCancel={() => setFormOpen(false)} isLoading={mutation.isPending}
-              extraFieldsBefore={
-                <div className="space-y-4 pb-4 border-b mb-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div><Label>First Name <span className="text-destructive">*</span></Label><Input value={firstname} onChange={e => setFirstname(e.target.value)} required placeholder="First name" /></div>
-                    <div><Label>Last Name <span className="text-destructive">*</span></Label><Input value={lastname} onChange={e => setLastname(e.target.value)} required placeholder="Last name" /></div>
-                    <div><Label>Level</Label><Select value={levelId} onValueChange={v => { setLevelId(v); setClassId(''); }}><SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger><SelectContent>{levels.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent></Select></div>
-                    <div><Label>Class</Label><Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger><SelectContent>{filteredClasses.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-                  </div>
-                  <div><Label>Parents</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-auto">
-                      {parents.map((p: any) => (<label key={p.id} className="flex items-center gap-2"><Checkbox checked={parentIds.includes(p.id)} onCheckedChange={checked => setParentIds(prev => checked ? [...prev, p.id] : prev.filter(x => x !== p.id))} /><span className="text-sm">{p.firstname} {p.lastname}</span></label>))}
-                    </div>
-                  </div>
-                </div>
-              }
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DataTable
+        data={studentsRes?.data || []}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search students..."
+        onView={s => navigate(`/students/${s.id}`)}
+        onEdit={s => { setEditing(s); setDialogOpen(true); }}
+        onDelete={s => setDeleteTarget(s)}
+        exportFilename="students"
+        onImportClick={() => setImportOpen(true)}
+      />
+      <StudentDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editing={editing}
+        fields={fields}
+        parents={parentsRes?.data || []}
+        levels={levelsRes?.data || []}
+        classes={classesRes?.data || []}
+        isSubmitting={createMut.isPending || updateMut.isPending}
+        onSubmit={(data: any) => editing ? updateMut.mutate({ id: editing.id, ...data }) : createMut.mutate(data)}
+      />
+      <ExcelImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={handleImport} expectedColumns={['First Name', 'Last Name', 'levelId', 'classId']} />
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete student?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete {deleteTarget?.firstname} {deleteTarget?.lastname}.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+function StudentDialog({ open, onOpenChange, editing, fields, parents, levels, classes, isSubmitting, onSubmit }: any) {
+  const dynamicSchema = buildDynamicSchema(fields);
+  const schema = z.object({
+    firstname: z.string().min(1, 'First name is required'),
+    lastname: z.string().min(1, 'Last name is required'),
+    levelId: z.string().min(1, 'Level is required'),
+    classId: z.string().optional(),
+    parentIds: z.array(z.string()).optional(),
+    defaultParentId: z.string().optional(),
+    photo: z.string().optional(),
+    ...dynamicSchema,
+  });
+
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      firstname: '', lastname: '', levelId: '', classId: '', parentIds: [], defaultParentId: '', photo: '',
+      ...getDynamicDefaults(fields),
+    },
+  });
+
+  // Reset form when dialog opens or when editing/fields change
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        firstname: editing?.firstname || '',
+        lastname: editing?.lastname || '',
+        levelId: editing?.levelId || '',
+        classId: editing?.classId || '',
+        parentIds: editing?.parentIds || [],
+        defaultParentId: editing?.defaultParentId || '',
+        photo: editing?.dynamicFields?.photo || '',
+        ...getDynamicDefaults(fields, editing?.dynamicFields),
+      });
+    }
+  }, [open, editing, fields, form]);
+
+  const watchLevel = form.watch('levelId');
+  const filteredClasses = classes.filter((c: any) => c.levelId === watchLevel);
+
+  const handleSubmit = (data: any) => {
+    const { firstname, lastname, levelId, classId, parentIds, defaultParentId, photo, ...rest } = data;
+    onSubmit({ firstname, lastname, levelId, classId, parentIds, defaultParentId, dynamicFields: { ...rest, photo } });
+  };
+
+  // Multi-select for parents
+  const selectedParentIds = form.watch('parentIds') || [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Edit Student' : 'Add Student'}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField control={form.control} name="photo" render={({ field }) => (
+              <FormItem>
+                <PhotoUpload value={field.value} onChange={field.onChange} initials={(form.watch('firstname')?.[0] || '') + (form.watch('lastname')?.[0] || '')} />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="firstname" render={({ field }) => (
+                <FormItem><FormLabel>First Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="lastname" render={({ field }) => (
+                <FormItem><FormLabel>Last Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="levelId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Level *</FormLabel>
+                  <Select onValueChange={(v) => { field.onChange(v); form.setValue('classId', ''); }} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger></FormControl>
+                    <SelectContent>{levels.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="classId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Class</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger></FormControl>
+                    <SelectContent>{filteredClasses.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            {/* Multi-select for Parents */}
+            <FormField
+              control={form.control}
+              name="parentIds"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Parents</FormLabel>
+                    <InlineParentCreate
+                      onCreated={(id) => {
+                        // Add the newly created parent to the selection
+                        field.onChange([...selectedParentIds, id]);
+                      }}
+                    />
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !selectedParentIds.length && "text-muted-foreground"
+                          )}
+                        >
+                          {selectedParentIds.length > 0 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {selectedParentIds.slice(0, 2).map((id) => {
+                                const parent = parents.find((p: any) => p.id === id);
+                                return parent ? (
+                                  <Badge variant="secondary" key={id}>
+                                    {parent.firstname} {parent.lastname}
+                                  </Badge>
+                                ) : null;
+                              })}
+                              {selectedParentIds.length > 2 && (
+                                <Badge variant="secondary">+{selectedParentIds.length - 2}</Badge>
+                              )}
+                            </div>
+                          ) : (
+                            "Select parents"
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search parents..." />
+                        <CommandEmpty>No parents found.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-auto">
+                          {parents.map((parent: any) => (
+                            <CommandItem
+                              key={parent.id}
+                              onSelect={() => {
+                                const current = field.value || [];
+                                const updated = current.includes(parent.id)
+                                  ? current.filter((id: string) => id !== parent.id)
+                                  : [...current, parent.id];
+                                field.onChange(updated);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedParentIds.includes(parent.id) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {parent.firstname} {parent.lastname}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DynamicFormFields fields={fields} control={form.control} />
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,46 +1,57 @@
-import { useQuery } from '@tanstack/react-query';
-import { getEntityById, getTemplate, getEntities } from '@/services/api';
-import { DynamicView } from '@/components/dynamic-view/DynamicView';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { parentApi, studentApi, templateApi } from '@/services/api';
+import { DynamicView } from '@/components/DynamicView';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ParentDetail() {
   const { id } = useParams();
-  const nav = useNavigate();
-  const { data: parent } = useQuery({ queryKey: ['parent', id], queryFn: () => getEntityById('parent', id!) });
-  const { data: template } = useQuery({ queryKey: ['template', 'parent'], queryFn: () => getTemplate('parent') });
-  const { data: students = [] } = useQuery({ queryKey: ['students'], queryFn: () => getEntities('student') });
+  const navigate = useNavigate();
+  const { data: res, isLoading } = useQuery({ queryKey: ['parents', id], queryFn: () => parentApi.getById(id!) });
+  const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
+  const { data: studentsRes } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
 
-  if (!parent || !template) return <p>Loading...</p>;
+  const parent = res?.data;
+  const fields = tplRes?.data?.parent?.fields || [];
 
-  const parentStudents = students.filter((s: any) => s.parentIds?.includes(parent.id));
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (!parent) return <div className="text-center py-12 text-muted-foreground">Parent not found</div>;
+
+  const children = studentsRes?.data?.filter(s => parent.studentIds.includes(s.id)) || [];
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => nav('/parents')}><ArrowLeft className="h-4 w-4" /></Button>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/parents')}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold">{parent.firstname} {parent.lastname}</h1>
       </div>
-      <Card>
-        <CardHeader><CardTitle>Base Information</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div><p className="text-xs font-medium text-muted-foreground uppercase mb-1">First Name</p><p className="text-sm">{parent.firstname}</p></div>
-            <div><p className="text-xs font-medium text-muted-foreground uppercase mb-1">Last Name</p><p className="text-sm">{parent.lastname}</p></div>
-            <div className="md:col-span-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase mb-1">Students</p>
-              <div className="flex gap-1 flex-wrap">{parentStudents.length > 0 ? parentStudents.map((s: any) => <Badge key={s.id} variant="secondary">{s.firstname} {s.lastname}</Badge>) : <span className="text-sm text-muted-foreground italic">—</span>}</div>
-            </div>
+
+      <Tabs defaultValue="info">
+        <TabsList>
+          <TabsTrigger value="info">Information</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="info">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader><CardTitle className="text-lg">Children</CardTitle></CardHeader>
+              <CardContent>
+                {children.length === 0 ? <p className="text-muted-foreground">No children linked</p> : (
+                  <div className="space-y-2">{children.map(c => <p key={c.id} className="font-medium cursor-pointer hover:text-primary" onClick={() => navigate(`/students/${c.id}`)}>{c.firstname} {c.lastname}</p>)}</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-lg">Details</CardTitle></CardHeader>
+              <CardContent><DynamicView fields={fields} data={parent.dynamicFields || {}} /></CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>Additional Details</CardTitle></CardHeader>
-        <CardContent><DynamicView fields={template.fields} data={parent} /></CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
