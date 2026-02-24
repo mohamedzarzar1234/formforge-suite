@@ -60,7 +60,7 @@ export function InlineParentCreate({ onCreated }: { onCreated?: (id: string) => 
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Parent</DialogTitle></DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(d => mut.mutate(d))} className="space-y-4">
+            <form onSubmit={(e) => { e.stopPropagation(); form.handleSubmit(d => mut.mutate(d))(e); }} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="firstname" render={({ field }) => (
                   <FormItem><FormLabel>First Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -111,7 +111,7 @@ export function InlineSubjectCreate({ onCreated }: { onCreated?: (id: string) =>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Add Subject</DialogTitle></DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(d => mut.mutate(d))} className="space-y-4">
+            <form onSubmit={(e) => { e.stopPropagation(); form.handleSubmit(d => mut.mutate(d))(e); }} className="space-y-4">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem><FormLabel>Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />

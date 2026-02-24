@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,18 @@ export default function ManagerAttendance() {
   const absences = absencesRes?.data || [];
   const lates = latesRes?.data || [];
   const stats = statsRes?.data;
+
+  const filteredAbsences = useMemo(() => {
+    let items = absences;
+    if (filter.entityId) items = items.filter(i => i.managerId === filter.entityId);
+    return items;
+  }, [absences, filter.entityId]);
+
+  const filteredLates = useMemo(() => {
+    let items = lates;
+    if (filter.entityId) items = items.filter(i => i.managerId === filter.entityId);
+    return items;
+  }, [lates, filter.entityId]);
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['manager-absences'] }); qc.invalidateQueries({ queryKey: ['manager-lates'] }); qc.invalidateQueries({ queryKey: ['manager-attendance-stats'] }); };
 
@@ -136,6 +148,13 @@ export default function ManagerAttendance() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Manager</Label>
+              <Select value={filter.entityId || 'all'} onValueChange={v => setFilter(f => ({ ...f, entityId: v === 'all' ? undefined : v }))}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>{<SelectItem value="all">All Managers</SelectItem>}{managers.map(m => <SelectItem key={m.id} value={m.id}>{m.firstname} {m.lastname}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1"><Label className="text-xs">Date From</Label><Input type="date" value={filter.dateFrom || ''} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value || undefined }))} className="w-40" /></div>
             <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
             <div className="flex items-end"><Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear Filters</Button></div>
@@ -145,8 +164,8 @@ export default function ManagerAttendance() {
 
       <Tabs value={tab} onValueChange={v => setTab(v as any)}>
         <TabsList>
-          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences ({absences.length})</TabsTrigger>
-          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates ({lates.length})</TabsTrigger>
+          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences ({filteredAbsences.length})</TabsTrigger>
+          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates ({filteredLates.length})</TabsTrigger>
           <TabsTrigger value="stats" className="gap-2"><BarChart3 className="h-4 w-4" />Statistics</TabsTrigger>
         </TabsList>
 
@@ -157,15 +176,15 @@ export default function ManagerAttendance() {
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ managerId: '', date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
             <AttendanceQRScanner entityType="managers" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
-            <Button size="sm" variant="outline" onClick={() => exportToExcel(absences.map(a => ({ ...a, managerName: getManagerName(a.managerId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, managerName: getManagerName(a.managerId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
           </div>
           {absLoading ? <Skeleton className="h-48 w-full" /> : (
             <div className="rounded-md border overflow-auto">
               <Table>
                 <TableHeader><TableRow><TableHead>Manager</TableHead><TableHead>Date</TableHead><TableHead>Justified</TableHead><TableHead>Reason</TableHead><TableHead className="w-24">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {absences.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No absences found</TableCell></TableRow> :
-                    absences.map(a => (
+                  {filteredAbsences.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No absences found</TableCell></TableRow> :
+                    filteredAbsences.map(a => (
                       <TableRow key={a.id}>
                         <TableCell>{getManagerName(a.managerId)}</TableCell>
                         <TableCell>{a.date}</TableCell>
@@ -187,15 +206,15 @@ export default function ManagerAttendance() {
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ managerId: '', date: today(), isJustified: false, period: 10 }]); setBulkLateDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
             <AttendanceQRScanner entityType="managers" mode="bulk" onScanned={handleScanBulkLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportLateOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
-            <Button size="sm" variant="outline" onClick={() => exportToExcel(lates.map(l => ({ ...l, managerName: getManagerName(l.managerId), justified: l.isJustified ? 'Yes' : 'No', periodStr: `${l.period} min`, reason: l.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'periodStr', label: 'Period' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-lates')}><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredLates.map(l => ({ ...l, managerName: getManagerName(l.managerId), justified: l.isJustified ? 'Yes' : 'No', periodStr: `${l.period} min`, reason: l.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'periodStr', label: 'Period' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-lates')}><Download className="mr-2 h-4 w-4" />Export</Button>
           </div>
           {lateLoading ? <Skeleton className="h-48 w-full" /> : (
             <div className="rounded-md border overflow-auto">
               <Table>
                 <TableHeader><TableRow><TableHead>Manager</TableHead><TableHead>Date</TableHead><TableHead>Period</TableHead><TableHead>Justified</TableHead><TableHead>Reason</TableHead><TableHead className="w-24">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {lates.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No lates found</TableCell></TableRow> :
-                    lates.map(l => (
+                  {filteredLates.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No lates found</TableCell></TableRow> :
+                    filteredLates.map(l => (
                       <TableRow key={l.id}>
                         <TableCell>{getManagerName(l.managerId)}</TableCell>
                         <TableCell>{l.date}</TableCell>
