@@ -5,7 +5,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, X, PlusCircle } from 'lucide-react';
+import { Plus, X, PlusCircle, Check, ChevronsUpDown } from 'lucide-react';
 import { teacherApi, subjectApi, classApi, levelApi, templateApi } from '@/services/api';
 import { buildDynamicSchema, getDynamicDefaults } from '@/lib/schema-builder';
 import type { Teacher } from '@/types';
@@ -16,12 +16,15 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column } from '@/components/DataTable';
 import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { InlineSubjectCreate } from '@/components/InlineCreateDialog';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { cn } from '@/lib/utils';
 
 export default function TeachersPage() {
   const navigate = useNavigate();
@@ -157,29 +160,81 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
                 <FormItem><FormLabel>Last Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
-            <FormField control={form.control} name="subjectIds" render={({ field }) => (
-              <FormItem>
-                <div className="flex items-center justify-between">
-                  <FormLabel>Subjects</FormLabel>
-                  <InlineSubjectCreate />
-                </div>
-                <div className="rounded-md border p-3 max-h-32 overflow-auto space-y-2">
-                  {subjects.map((s: any) => (
-                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={(field.value || []).includes(s.id)}
-                        onCheckedChange={c => {
-                          const v = field.value || [];
-                          field.onChange(c ? [...v, s.id] : v.filter((x: string) => x !== s.id));
-                        }}
-                      />
-                      {s.name} ({s.code})
-                    </label>
-                  ))}
-                </div>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormField control={form.control} name="subjectIds" render={({ field }) => {
+              const selectedSubjectIds = field.value || [];
+              return (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Subjects</FormLabel>
+                    <InlineSubjectCreate onCreated={(id) => {
+                      field.onChange([...selectedSubjectIds, id]);
+                    }} />
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !selectedSubjectIds.length && "text-muted-foreground"
+                          )}
+                        >
+                          {selectedSubjectIds.length > 0 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {selectedSubjectIds.slice(0, 3).map((id) => {
+                                const subj = subjects.find((s: any) => s.id === id);
+                                return subj ? (
+                                  <Badge variant="secondary" key={id}>
+                                    {subj.name}
+                                  </Badge>
+                                ) : null;
+                              })}
+                              {selectedSubjectIds.length > 3 && (
+                                <Badge variant="secondary">+{selectedSubjectIds.length - 3}</Badge>
+                              )}
+                            </div>
+                          ) : (
+                            "Select subjects"
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search subjects..." />
+                        <CommandEmpty>No subjects found.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-auto">
+                          {subjects.map((s: any) => (
+                            <CommandItem
+                              key={s.id}
+                              onSelect={() => {
+                                const current = field.value || [];
+                                const updated = current.includes(s.id)
+                                  ? current.filter((x: string) => x !== s.id)
+                                  : [...current, s.id];
+                                field.onChange(updated);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedSubjectIds.includes(s.id) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {s.name} ({s.code})
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              );
+            }} />
 
             {/* Class Assignments with Subjects */}
             <div className="space-y-3">

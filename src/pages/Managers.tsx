@@ -1,12 +1,12 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Check, ChevronsUpDown } from 'lucide-react';
-import { managerApi, classApi, templateApi } from '@/services/api';
+import { Plus } from 'lucide-react';
+import { managerApi, classApi, levelApi, templateApi } from '@/services/api';
 import { buildDynamicSchema, getDynamicDefaults } from '@/lib/schema-builder';
 import type { Manager } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DataTable, type Column } from '@/components/DataTable';
 import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
-import { cn } from '@/lib/utils';
 
 export default function ManagersPage() {
   const navigate = useNavigate();
@@ -35,6 +32,7 @@ export default function ManagersPage() {
   const { data: res, isLoading } = useQuery({ queryKey: ['managers'], queryFn: () => managerApi.getAll({ page: 1, limit: 1000 }) });
   const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
   const { data: classesRes } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
   const fields = tplRes?.data?.manager?.fields || [];
 
   const createMut = useMutation({ mutationFn: (d: Partial<Manager>) => managerApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers'] }); setDialogOpen(false); toast.success('Manager created'); } });
@@ -66,7 +64,7 @@ export default function ManagersPage() {
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Manager</Button>
       </div>
       <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search managers..." onView={m => navigate(`/managers/${m.id}`)} onEdit={m => { setEditing(m); setDialogOpen(true); }} onDelete={m => setDeleteTarget(m)} exportFilename="managers" onImportClick={() => setImportOpen(true)} />
-      <ManagerDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} classes={classesRes?.data || []} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={handleSubmit} />
+      <ManagerDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} classes={classesRes?.data || []} levels={levelsRes?.data || []} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={handleSubmit} />
       <ExcelImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={handleImport} expectedColumns={['First Name', 'Last Name']} />
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete manager?</AlertDialogTitle><AlertDialogDescription>Permanently delete {deleteTarget?.firstname} {deleteTarget?.lastname}?</AlertDialogDescription></AlertDialogHeader>
@@ -76,7 +74,7 @@ export default function ManagersPage() {
   );
 }
 
-function ManagerDialog({ open, onOpenChange, editing, fields, classes, isSubmitting, onSubmit }: any) {
+function ManagerDialog({ open, onOpenChange, editing, fields, classes, levels, isSubmitting, onSubmit }: any) {
   const schema = z.object({
     firstname: z.string().min(1, 'Required'),
     lastname: z.string().min(1, 'Required'),
@@ -89,13 +87,12 @@ function ManagerDialog({ open, onOpenChange, editing, fields, classes, isSubmitt
     defaultValues: {
       firstname: '',
       lastname: '',
-      classIds: [],
+      classIds: [] as string[],
       photo: '',
       ...getDynamicDefaults(fields)
     }
   });
 
-  // Reset form when dialog opens or when editing/fields change
   useEffect(() => {
     if (open) {
       form.reset({
@@ -107,6 +104,34 @@ function ManagerDialog({ open, onOpenChange, editing, fields, classes, isSubmitt
       });
     }
   }, [open, editing, fields, form]);
+
+  const selectedClassIds: string[] = form.watch('classIds') || [];
+
+  // Group classes by level
+  const levelGroups = useMemo(() => {
+    return levels.map((level: any) => ({
+      ...level,
+      classes: classes.filter((c: any) => c.levelId === level.id),
+    })).filter((g: any) => g.classes.length > 0);
+  }, [levels, classes]);
+
+  const toggleClass = (classId: string) => {
+    const current = form.getValues('classIds') || [];
+    const updated = current.includes(classId)
+      ? current.filter((id: string) => id !== classId)
+      : [...current, classId];
+    form.setValue('classIds', updated);
+  };
+
+  const toggleLevel = (levelClasses: any[]) => {
+    const current = form.getValues('classIds') || [];
+    const levelClassIds = levelClasses.map((c: any) => c.id);
+    const allSelected = levelClassIds.every((id: string) => current.includes(id));
+    const updated = allSelected
+      ? current.filter((id: string) => !levelClassIds.includes(id))
+      : [...new Set([...current, ...levelClassIds])];
+    form.setValue('classIds', updated);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -130,80 +155,67 @@ function ManagerDialog({ open, onOpenChange, editing, fields, classes, isSubmitt
               )} />
             </div>
 
-            {/* Multi-select for Classes */}
+            {/* Classes as level-grouped table */}
             <FormField
               control={form.control}
               name="classIds"
-              render={({ field }) => {
-                const selectedClassIds = field.value || [];
-                return (
-                  <FormItem>
-                    <FormLabel>Classes</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn(
-                              "w-full justify-between",
-                              !selectedClassIds.length && "text-muted-foreground"
-                            )}
-                          >
-                            {selectedClassIds.length > 0 ? (
-                              <div className="flex gap-1 flex-wrap">
-                                {selectedClassIds.slice(0, 2).map((id) => {
-                                  const cls = classes.find((c: any) => c.id === id);
-                                  return cls ? (
-                                    <Badge variant="secondary" key={id}>
-                                      {cls.name}
-                                    </Badge>
-                                  ) : null;
-                                })}
-                                {selectedClassIds.length > 2 && (
-                                  <Badge variant="secondary">+{selectedClassIds.length - 2}</Badge>
-                                )}
-                              </div>
-                            ) : (
-                              "Select classes"
-                            )}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Search classes..." />
-                          <CommandEmpty>No classes found.</CommandEmpty>
-                          <CommandGroup className="max-h-64 overflow-auto">
-                            {classes.map((cls: any) => (
-                              <CommandItem
-                                key={cls.id}
-                                onSelect={() => {
-                                  const current = field.value || [];
-                                  const updated = current.includes(cls.id)
-                                    ? current.filter((id: string) => id !== cls.id)
-                                    : [...current, cls.id];
-                                  field.onChange(updated);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedClassIds.includes(cls.id) ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {cls.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
+              render={() => (
+                <FormItem>
+                  <FormLabel>Assign Classes</FormLabel>
+                  <div className="rounded-md border max-h-64 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Level / Class</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {levelGroups.map((group: any) => {
+                          const levelClassIds = group.classes.map((c: any) => c.id);
+                          const allSelected = levelClassIds.every((id: string) => selectedClassIds.includes(id));
+                          const someSelected = levelClassIds.some((id: string) => selectedClassIds.includes(id)) && !allSelected;
+                          return (
+                            <React.Fragment key={group.id}>
+                              <TableRow className="bg-muted/50 font-medium">
+                                <TableCell className="py-2">
+                                  <Checkbox
+                                    checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                                    onCheckedChange={() => toggleLevel(group.classes)}
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 font-semibold text-sm">
+                                  {group.name}
+                                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                    ({levelClassIds.filter((id: string) => selectedClassIds.includes(id)).length}/{levelClassIds.length})
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                              {group.classes.map((cls: any) => (
+                                <TableRow key={cls.id}>
+                                  <TableCell className="py-1.5 pl-6">
+                                    <Checkbox
+                                      checked={selectedClassIds.includes(cls.id)}
+                                      onCheckedChange={() => toggleClass(cls.id)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="py-1.5 pl-8 text-sm">{cls.name}</TableCell>
+                                </TableRow>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                        {levelGroups.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={2} className="text-center text-muted-foreground py-4">No classes available</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             <DynamicFormFields fields={fields} control={form.control} />
