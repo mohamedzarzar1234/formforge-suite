@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Trash2, Pencil, Download, Upload, UserX, Clock, BarChart3, ListPlus, ScanLine } from 'lucide-react';
+import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
+import { ViewToggle } from '@/components/ViewToggle';
 import { toast } from 'sonner';
 import { teacherAttendanceApi, getSessionOptions } from '@/services/attendance-api';
 import { teacherApi, classApi, levelApi } from '@/services/api';
@@ -37,6 +39,8 @@ export default function TeacherAttendance() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'absence' | 'late' } | null>(null);
   const [editingAbsence, setEditingAbsence] = useState<TeacherAbsence | null>(null);
   const [editingLate, setEditingLate] = useState<TeacherLate | null>(null);
+  const [absView, setAbsView] = useState<'table' | 'calendar'>('table');
+  const [lateView, setLateView] = useState<'table' | 'calendar'>('table');
 
   const sessionOptions = getSessionOptions();
   const [formTeacherId, setFormTeacherId] = useState('');
@@ -193,15 +197,24 @@ export default function TeacherAttendance() {
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
             <Button size="sm" onClick={() => { resetAbsForm(); setAbsDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Absence</Button>
             <AttendanceQRScanner entityType="teachers" mode="single" onScanned={handleScanSingleAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Scan Add</Button>} />
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
             <AttendanceQRScanner entityType="teachers" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, teacherName: getTeacherName(a.teacherId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'teacherName', label: 'Teacher' }, { key: 'session', label: 'Session' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'teacher-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
+            <div className="ml-auto"><ViewToggle view={absView} onViewChange={setAbsView} /></div>
           </div>
-          {absLoading ? <Skeleton className="h-48 w-full" /> : (
+          {absLoading ? <Skeleton className="h-48 w-full" /> : absView === 'calendar' ? (
+            <AttendanceCalendarView
+              items={filteredAbsences}
+              type="absences"
+              getEntityName={(item) => getTeacherName(item.teacherId)}
+              onEdit={(item) => { resetAbsForm(item as any); setEditingAbsence(item as any); }}
+              onDelete={(item) => setDeleteTarget({ id: item.id, type: 'absence' })}
+            />
+          ) : (
             <div className="rounded-md border overflow-auto">
               <Table>
                 <TableHeader><TableRow><TableHead>Teacher</TableHead><TableHead>Session</TableHead><TableHead>Date</TableHead><TableHead>Justified</TableHead><TableHead>Reason</TableHead><TableHead className="w-24">Actions</TableHead></TableRow></TableHeader>
@@ -224,15 +237,24 @@ export default function TeacherAttendance() {
         </TabsContent>
 
         <TabsContent value="lates" className="space-y-4">
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
             <Button size="sm" onClick={() => { resetLateForm(); setLateDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Late</Button>
             <AttendanceQRScanner entityType="teachers" mode="single" onScanned={handleScanSingleLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Scan Add</Button>} />
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false, period: 10 }]); setBulkLateDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
             <AttendanceQRScanner entityType="teachers" mode="bulk" onScanned={handleScanBulkLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportLateOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredLates.map(l => ({ ...l, teacherName: getTeacherName(l.teacherId), justified: l.isJustified ? 'Yes' : 'No', periodStr: `${l.period} min`, reason: l.reason || '' })), [{ key: 'teacherName', label: 'Teacher' }, { key: 'session', label: 'Session' }, { key: 'date', label: 'Date' }, { key: 'periodStr', label: 'Period' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'teacher-lates')}><Download className="mr-2 h-4 w-4" />Export</Button>
+            <div className="ml-auto"><ViewToggle view={lateView} onViewChange={setLateView} /></div>
           </div>
-          {lateLoading ? <Skeleton className="h-48 w-full" /> : (
+          {lateLoading ? <Skeleton className="h-48 w-full" /> : lateView === 'calendar' ? (
+            <AttendanceCalendarView
+              items={filteredLates}
+              type="lates"
+              getEntityName={(item) => getTeacherName(item.teacherId)}
+              onEdit={(item) => { resetLateForm(item as any); setEditingLate(item as any); }}
+              onDelete={(item) => setDeleteTarget({ id: item.id, type: 'late' })}
+            />
+          ) : (
             <div className="rounded-md border overflow-auto">
               <Table>
                 <TableHeader><TableRow><TableHead>Teacher</TableHead><TableHead>Session</TableHead><TableHead>Date</TableHead><TableHead>Period</TableHead><TableHead>Justified</TableHead><TableHead>Reason</TableHead><TableHead className="w-24">Actions</TableHead></TableRow></TableHeader>

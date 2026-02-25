@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Trash2, Pencil } from 'lucide-react';
+import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
+import { ViewToggle } from '@/components/ViewToggle';
 import { toast } from 'sonner';
 import { studentAttendanceApi, teacherAttendanceApi, managerAttendanceApi, getSessionOptions } from '@/services/attendance-api';
 
@@ -29,6 +31,7 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
   const [formDate, setFormDate] = useState(today());
   const [formJustified, setFormJustified] = useState(false);
@@ -122,12 +125,23 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{items.length} {recordType} for {entityName}</p>
-        <Button size="sm" onClick={() => { resetForm(); setEditingId(null); setDialogOpen(true); }}>
-          <Plus className="mr-2 h-4 w-4" />Add {isAbsences ? 'Absence' : 'Late'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <ViewToggle view={viewMode} onViewChange={setViewMode} />
+          <Button size="sm" onClick={() => { resetForm(); setEditingId(null); setDialogOpen(true); }}>
+            <Plus className="mr-2 h-4 w-4" />Add {isAbsences ? 'Absence' : 'Late'}
+          </Button>
+        </div>
       </div>
 
-      {isLoading ? <Skeleton className="h-48 w-full" /> : (
+      {isLoading ? <Skeleton className="h-48 w-full" /> : viewMode === 'calendar' ? (
+        <AttendanceCalendarView
+          items={items}
+          type={recordType}
+          showEntity={false}
+          onEdit={(item) => { resetForm(item); setEditingId(item.id); setDialogOpen(true); }}
+          onDelete={(item) => setDeleteTarget(item.id)}
+        />
+      ) : (
         <div className="rounded-md border overflow-auto">
           <Table>
             <TableHeader>
