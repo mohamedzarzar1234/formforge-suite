@@ -147,6 +147,20 @@ export const lessonApi = {
     lessons = [...lessons];
     return { data: null, message: 'Reordered', success: true, statusCode: 200 };
   },
+  moveToUnit: async (lessonId: string, newUnitId: string, targetLessonIds: string[]): Promise<ApiResponse<null>> => {
+    await delay();
+    const idx = lessons.findIndex(l => l.id === lessonId);
+    if (idx !== -1) {
+      lessons[idx] = { ...lessons[idx], unitId: newUnitId };
+    }
+    // Reorder lessons in the target container
+    targetLessonIds.forEach((id, i) => {
+      const l = lessons.find(l => l.id === id);
+      if (l) l.order = i + 1;
+    });
+    lessons = [...lessons];
+    return { data: null, message: 'Moved', success: true, statusCode: 200 };
+  },
 };
 
 // ── Question API ──
