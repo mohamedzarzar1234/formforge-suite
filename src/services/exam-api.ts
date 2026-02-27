@@ -220,7 +220,17 @@ export const examApi = {
         ...pick(pool.filter(q => q.difficulty === 'hard'), config.hardCount || 0),
       ];
     }
-    const exam: Exam = { id: genId('exam'), name: config.name, lessonIds: config.lessonIds, questionIds: selectedQuestionIds, createdAt: new Date().toISOString(), status: 'published' };
+    const exam: Exam = {
+      id: genId('exam'),
+      name: config.name,
+      levelId: config.levelId,
+      subjectId: config.subjectId,
+      lessonIds: config.lessonIds,
+      questionIds: selectedQuestionIds,
+      maxScore: config.maxScore ?? 100,
+      createdAt: new Date().toISOString(),
+      status: 'published',
+    };
     exams = [...exams, exam];
     return { data: exam, message: 'Exam generated', success: true, statusCode: 201 };
   },
