@@ -321,9 +321,14 @@ export default function Lessons() {
     mutationFn: (id: string) => lessonApi.delete(id),
     onSuccess: () => { invalidate(); toast({ title: 'Lesson deleted' }); },
   });
-  const reorderLessonsMut = useMutation({
+  const reorderWithinUnitMut = useMutation({
     mutationFn: (ids: string[]) => lessonApi.reorder(ids),
     onSuccess: () => invalidate(),
+  });
+  const moveToUnitMut = useMutation({
+    mutationFn: ({ lessonId, newUnitId, targetOrder }: { lessonId: string; newUnitId: string; targetOrder: string[] }) =>
+      lessonApi.moveToUnit(lessonId, newUnitId, targetOrder),
+    onSuccess: () => { invalidate(); toast({ title: 'Lesson moved' }); },
   });
   const createUnitMut = useMutation({
     mutationFn: (data: Omit<Unit, 'id' | 'createdAt'>) => unitApi.create(data),
