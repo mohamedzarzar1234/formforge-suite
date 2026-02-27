@@ -123,7 +123,6 @@ export default function ManagerAttendance() {
     setDeleteTarget(null);
   };
 
-  // QR Scan handlers
   const handleScanSingleAbs = (ids: string[]) => { if (ids[0]) { resetAbsForm(); setFormManagerId(ids[0]); setAbsDialog(true); } };
   const handleScanSingleLate = (ids: string[]) => { if (ids[0]) { resetLateForm(); setFormManagerId(ids[0]); setLateDialog(true); } };
   const handleScanBulkAbs = (ids: string[]) => { setBulkRows(ids.map(id => ({ managerId: id, date: today(), isJustified: false }))); setBulkAbsDialog(true); };
@@ -145,23 +144,33 @@ export default function ManagerAttendance() {
   const removeBulkRow = (idx: number) => setBulkRows(prev => prev.filter((_, i) => i !== idx));
   const updateBulkRow = (idx: number, field: string, value: any) => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
 
+  const activeView = tab === 'absences' ? absView : lateView;
+
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-foreground">Manager Attendance</h1><p className="text-sm text-muted-foreground">Track absences and lates for managers</p></div>
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
               <Label className="text-xs">Manager</Label>
               <Select value={filter.entityId || 'all'} onValueChange={v => setFilter(f => ({ ...f, entityId: v === 'all' ? undefined : v }))}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                <SelectContent>{<SelectItem value="all">All Managers</SelectItem>}{managers.map(m => <SelectItem key={m.id} value={m.id}>{m.firstname} {m.lastname}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="all">All Managers</SelectItem>{managers.map(m => <SelectItem key={m.id} value={m.id}>{m.firstname} {m.lastname}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label className="text-xs">Date From</Label><Input type="date" value={filter.dateFrom || ''} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value || undefined }))} className="w-40" /></div>
-            <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
-            <div className="flex items-end"><Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear Filters</Button></div>
+            {activeView !== 'calendar' && (
+              <>
+                <div className="space-y-1"><Label className="text-xs">Date From</Label><Input type="date" value={filter.dateFrom || ''} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value || undefined }))} className="w-40" /></div>
+                <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear</Button>
+            <div className="ml-auto">
+              {tab === 'absences' && <ViewToggle view={absView} onViewChange={setAbsView} />}
+              {tab === 'lates' && <ViewToggle view={lateView} onViewChange={setLateView} />}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -181,16 +190,9 @@ export default function ManagerAttendance() {
             <AttendanceQRScanner entityType="managers" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, managerName: getManagerName(a.managerId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
-            <div className="ml-auto"><ViewToggle view={absView} onViewChange={setAbsView} /></div>
           </div>
           {absLoading ? <Skeleton className="h-48 w-full" /> : absView === 'calendar' ? (
-            <AttendanceCalendarView
-              items={filteredAbsences}
-              type="absences"
-              getEntityName={(item) => getManagerName(item.managerId)}
-              onEdit={(item) => { resetAbsForm(item as any); setEditingAbsence(item as any); }}
-              onDelete={(item) => setDeleteTarget({ id: item.id, type: 'absence' })}
-            />
+            <AttendanceCalendarView items={filteredAbsences} type="absences" getEntityName={(item) => getManagerName(item.managerId)} onEdit={(item) => { resetAbsForm(item as any); setEditingAbsence(item as any); }} onDelete={(item) => setDeleteTarget({ id: item.id, type: 'absence' })}  />
           ) : (
             <div className="rounded-md border overflow-auto">
               <Table>
@@ -220,16 +222,9 @@ export default function ManagerAttendance() {
             <AttendanceQRScanner entityType="managers" mode="bulk" onScanned={handleScanBulkLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportLateOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredLates.map(l => ({ ...l, managerName: getManagerName(l.managerId), justified: l.isJustified ? 'Yes' : 'No', periodStr: `${l.period} min`, reason: l.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'periodStr', label: 'Period' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-lates')}><Download className="mr-2 h-4 w-4" />Export</Button>
-            <div className="ml-auto"><ViewToggle view={lateView} onViewChange={setLateView} /></div>
           </div>
           {lateLoading ? <Skeleton className="h-48 w-full" /> : lateView === 'calendar' ? (
-            <AttendanceCalendarView
-              items={filteredLates}
-              type="lates"
-              getEntityName={(item) => getManagerName(item.managerId)}
-              onEdit={(item) => { resetLateForm(item as any); setEditingLate(item as any); }}
-              onDelete={(item) => setDeleteTarget({ id: item.id, type: 'late' })}
-            />
+            <AttendanceCalendarView items={filteredLates} type="lates" getEntityName={(item) => getManagerName(item.managerId)} onEdit={(item) => { resetLateForm(item as any); setEditingLate(item as any); }} onDelete={(item) => setDeleteTarget({ id: item.id, type: 'late' })} />
           ) : (
             <div className="rounded-md border overflow-auto">
               <Table>
