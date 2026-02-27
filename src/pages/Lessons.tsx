@@ -281,7 +281,7 @@ export default function Lessons() {
     const lesson = allLessons.find(l => l.id === active.id);
     if (!lesson) return;
 
-    // Same container - reorder
+    // Same container - reorder within unit
     if (activeContainer === overContainer) {
       const items = containers[activeContainer];
       const oldIdx = items.indexOf(active.id as string);
@@ -291,16 +291,16 @@ export default function Lessons() {
         newItems.splice(oldIdx, 1);
         newItems.splice(newIdx, 0, active.id as string);
         setContainers(prev => ({ ...prev, [activeContainer]: newItems }));
-        reorderLessonsMut.mutate(newItems);
+        // Reorder only lessons within this unit
+        reorderWithinUnitMut.mutate(newItems);
       }
       return;
     }
 
-    // Cross-container - update unitId + reorder
+    // Cross-container - update unitId and reorder target container
     const newUnitId = overContainer === '__ungrouped__' ? '' : overContainer;
-    updateLessonMut.mutate({ id: lesson.id, data: { unitId: newUnitId } });
-    const targetItems = containers[overContainer];
-    if (targetItems?.length) reorderLessonsMut.mutate(targetItems);
+    const targetItems = containers[overContainer] || [];
+    moveToUnitMut.mutate({ lessonId: lesson.id, newUnitId, targetOrder: targetItems });
   };
 
   // ── Mutations ──
