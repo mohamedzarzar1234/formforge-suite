@@ -135,6 +135,7 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
 
       {isLoading ? <Skeleton className="h-48 w-full" /> : viewMode === 'calendar' ? (
         <AttendanceCalendarView
+        isShowMixed={false}
           items={items}
           type={recordType}
           showEntity={false}
