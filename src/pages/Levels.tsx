@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,6 +20,7 @@ const schema = z.object({ name: z.string().min(1, 'Required'), description: z.st
 
 export default function LevelsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Level | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Level | null>(null);
@@ -39,7 +41,7 @@ export default function LevelsPage() {
         <div><h1 className="text-2xl font-bold tracking-tight">Levels</h1><p className="text-muted-foreground">{res?.total ?? 0} levels</p></div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Level</Button>
       </div>
-      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search levels..." onEdit={l => { setEditing(l); setDialogOpen(true); }} onDelete={l => setDeleteTarget(l)} exportFilename="levels" />
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search levels..." onEdit={l => { setEditing(l); setDialogOpen(true); }} onDelete={l => setDeleteTarget(l)} onView={l => navigate(`/levels/${l.id}`)} exportFilename="levels" />
       <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (o) resetForm(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Edit Level' : 'Add Level'}</DialogTitle></DialogHeader>

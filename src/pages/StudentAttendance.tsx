@@ -146,41 +146,19 @@ export default function StudentAttendance() {
     setDeleteTarget(null);
   };
 
-  // QR Scan handlers
-  const handleScanSingleAbs = (ids: string[]) => {
-    if (ids[0]) { resetAbsForm(); setFormStudentId(ids[0]); setAbsDialog(true); }
-  };
-  const handleScanSingleLate = (ids: string[]) => {
-    if (ids[0]) { resetLateForm(); setFormStudentId(ids[0]); setLateDialog(true); }
-  };
-  const handleScanBulkAbs = (ids: string[]) => {
-    setBulkRows(ids.map(id => ({ studentId: id, date: today(), isJustified: false })));
-    setBulkAbsDialog(true);
-  };
-  const handleScanBulkLate = (ids: string[]) => {
-    setBulkRows(ids.map(id => ({ studentId: id, date: today(), isJustified: false, period: 10 })));
-    setBulkLateDialog(true);
-  };
+  const handleScanSingleAbs = (ids: string[]) => { if (ids[0]) { resetAbsForm(); setFormStudentId(ids[0]); setAbsDialog(true); } };
+  const handleScanSingleLate = (ids: string[]) => { if (ids[0]) { resetLateForm(); setFormStudentId(ids[0]); setLateDialog(true); } };
+  const handleScanBulkAbs = (ids: string[]) => { setBulkRows(ids.map(id => ({ studentId: id, date: today(), isJustified: false }))); setBulkAbsDialog(true); };
+  const handleScanBulkLate = (ids: string[]) => { setBulkRows(ids.map(id => ({ studentId: id, date: today(), isJustified: false, period: 10 }))); setBulkLateDialog(true); };
 
   const handleImportAbsences = (rows: Record<string, string>[]) => {
-    const records = rows.map(r => ({
-      studentId: r['Student ID'] || r['studentId'] || '',
-      date: r['Date'] || r['date'] || today(),
-      isJustified: r['Justified']?.toLowerCase() === 'yes' || r['isJustified']?.toLowerCase() === 'true',
-      reason: r['Reason'] || r['reason'] || undefined,
-    })).filter(r => r.studentId);
+    const records = rows.map(r => ({ studentId: r['Student ID'] || r['studentId'] || '', date: r['Date'] || r['date'] || today(), isJustified: r['Justified']?.toLowerCase() === 'yes' || r['isJustified']?.toLowerCase() === 'true', reason: r['Reason'] || r['reason'] || undefined })).filter(r => r.studentId);
     if (!records.length) { toast.error('No valid records'); return; }
     bulkAbsMut.mutate(records);
   };
 
   const handleImportLates = (rows: Record<string, string>[]) => {
-    const records = rows.map(r => ({
-      studentId: r['Student ID'] || r['studentId'] || '',
-      date: r['Date'] || r['date'] || today(),
-      isJustified: r['Justified']?.toLowerCase() === 'yes' || r['isJustified']?.toLowerCase() === 'true',
-      reason: r['Reason'] || r['reason'] || undefined,
-      period: parseInt(r['Period'] || r['period'] || '10') || 10,
-    })).filter(r => r.studentId);
+    const records = rows.map(r => ({ studentId: r['Student ID'] || r['studentId'] || '', date: r['Date'] || r['date'] || today(), isJustified: r['Justified']?.toLowerCase() === 'yes' || r['isJustified']?.toLowerCase() === 'true', reason: r['Reason'] || r['reason'] || undefined, period: parseInt(r['Period'] || r['period'] || '10') || 10 })).filter(r => r.studentId);
     if (!records.length) { toast.error('No valid records'); return; }
     bulkLateMut.mutate(records);
   };
@@ -188,6 +166,8 @@ export default function StudentAttendance() {
   const addBulkRow = () => setBulkRows(prev => [...prev, { studentId: '', date: today(), isJustified: false, period: 10 }]);
   const removeBulkRow = (idx: number) => setBulkRows(prev => prev.filter((_, i) => i !== idx));
   const updateBulkRow = (idx: number, field: string, value: any) => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+
+  const activeView = tab === 'absences' ? absView : lateView;
 
   return (
     <div className="space-y-6">
@@ -201,7 +181,7 @@ export default function StudentAttendance() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
               <Label className="text-xs">Student</Label>
               <Select value={filter.entityId || 'all'} onValueChange={v => setFilter(f => ({ ...f, entityId: v === 'all' ? undefined : v }))}>
@@ -209,8 +189,12 @@ export default function StudentAttendance() {
                 <SelectContent><SelectItem value="all">All Students</SelectItem>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label className="text-xs">Date From</Label><Input type="date" value={filter.dateFrom || ''} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value || undefined }))} className="w-40" /></div>
-            <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
+            {activeView !== 'calendar' && (
+              <>
+                <div className="space-y-1"><Label className="text-xs">Date From</Label><Input type="date" value={filter.dateFrom || ''} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value || undefined }))} className="w-40" /></div>
+                <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
+              </>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Level</Label>
               <Select value={filter.levelId || 'all'} onValueChange={v => setFilter(f => ({ ...f, levelId: v === 'all' ? undefined : v }))}>
@@ -225,7 +209,11 @@ export default function StudentAttendance() {
                 <SelectContent><SelectItem value="all">All Classes</SelectItem>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="flex items-end"><Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear Filters</Button></div>
+            <Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear</Button>
+            <div className="ml-auto">
+              {tab === 'absences' && <ViewToggle view={absView} onViewChange={setAbsView} />}
+              {tab === 'lates' && <ViewToggle view={lateView} onViewChange={setLateView} />}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -245,7 +233,6 @@ export default function StudentAttendance() {
             <AttendanceQRScanner entityType="students" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, studentName: getStudentName(a.studentId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'studentName', label: 'Student' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'student-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
-            <div className="ml-auto"><ViewToggle view={absView} onViewChange={setAbsView} /></div>
           </div>
           {absLoading ? <Skeleton className="h-48 w-full" /> : absView === 'calendar' ? (
             <AttendanceCalendarView
@@ -293,7 +280,6 @@ export default function StudentAttendance() {
             <AttendanceQRScanner entityType="students" mode="bulk" onScanned={handleScanBulkLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportLateOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredLates.map(l => ({ ...l, studentName: getStudentName(l.studentId), justified: l.isJustified ? 'Yes' : 'No', periodStr: `${l.period} min`, reason: l.reason || '' })), [{ key: 'studentName', label: 'Student' }, { key: 'date', label: 'Date' }, { key: 'periodStr', label: 'Period' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'student-lates')}><Download className="mr-2 h-4 w-4" />Export</Button>
-            <div className="ml-auto"><ViewToggle view={lateView} onViewChange={setLateView} /></div>
           </div>
           {lateLoading ? <Skeleton className="h-48 w-full" /> : lateView === 'calendar' ? (
             <AttendanceCalendarView
@@ -356,9 +342,7 @@ export default function StudentAttendance() {
             </div>
             <div className="space-y-2"><Label>Date</Label><Input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} /></div>
             <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>Justified</Label></div>
-            {formJustified && (
-              <div className="space-y-2"><Label>Reason</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Enter justification reason..." /></div>
-            )}
+            {formJustified && <div className="space-y-2"><Label>Reason</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Enter justification reason..." /></div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAbsDialog(false); setEditingAbsence(null); }}>Cancel</Button>
@@ -382,9 +366,7 @@ export default function StudentAttendance() {
             <div className="space-y-2"><Label>Date</Label><Input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} /></div>
             <div className="space-y-2"><Label>Period of Late (minutes)</Label><Input type="number" min={1} value={formPeriod} onChange={e => setFormPeriod(parseInt(e.target.value) || 0)} /></div>
             <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>Justified</Label></div>
-            {formJustified && (
-              <div className="space-y-2"><Label>Reason</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Enter justification reason..." /></div>
-            )}
+            {formJustified && <div className="space-y-2"><Label>Reason</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Enter justification reason..." /></div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setLateDialog(false); setEditingLate(null); }}>Cancel</Button>
