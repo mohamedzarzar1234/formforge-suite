@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { examApi, lessonApi, questionApi } from '@/services/exam-api';
+import { levelApi, subjectApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Play, FileText, Search } from 'lucide-react';
+import { Plus, Trash2, Play, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import type { Exam, ExamConfig, Question } from '@/types/exam';
+import type { ExamConfig, Question } from '@/types/exam';
 
 export default function Exams() {
   const { toast } = useToast();
@@ -23,25 +24,47 @@ export default function Exams() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [mode, setMode] = useState<'manual' | 'auto'>('auto');
 
   // Form state
   const [examName, setExamName] = useState('');
+  const [selectedLevelId, setSelectedLevelId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedLessons, setSelectedLessons] = useState<string[]>([]);
+  const [maxScore, setMaxScore] = useState(100);
+  const [mode, setMode] = useState<'manual' | 'auto'>('auto');
   const [easyCount, setEasyCount] = useState(3);
   const [mediumCount, setMediumCount] = useState(3);
   const [hardCount, setHardCount] = useState(2);
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
 
-  const { data: lessonsRes } = useQuery({ queryKey: ['lessons-flat'], queryFn: () => lessonApi.getAllFlat() });
-  const allLessons = lessonsRes?.data ?? [];
+  // Queries
+  const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 100 }) });
+  const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 100 }) });
+  const { data: allLessonsRes } = useQuery({ queryKey: ['lessons-flat'], queryFn: () => lessonApi.getAllFlat() });
+
+  const levels = levelsRes?.data ?? [];
+  const allSubjects = subjectsRes?.data ?? [];
+  const allLessonsFlat = allLessonsRes?.data ?? [];
+
+  // Filter subjects that have lessons in the selected level
+  const filteredSubjects = useMemo(() => {
+    if (!selectedLevelId) return [];
+    const subjectIds = new Set(allLessonsFlat.filter(l => l.levelId === selectedLevelId).map(l => l.subjectId));
+    return allSubjects.filter(s => subjectIds.has(s.id));
+  }, [allSubjects, allLessonsFlat, selectedLevelId]);
+
+  // Filter lessons by selected level + subject
+  const filteredLessons = useMemo(() => {
+    if (!selectedLevelId || !selectedSubjectId) return [];
+    return allLessonsFlat.filter(l => l.levelId === selectedLevelId && l.subjectId === selectedSubjectId);
+  }, [allLessonsFlat, selectedLevelId, selectedSubjectId]);
 
   const { data: examsRes, isLoading } = useQuery({
     queryKey: ['exams', page, search],
     queryFn: () => examApi.getAll({ page, limit: 10, search }),
   });
 
-  // Fetch questions for selected lessons (for manual mode)
+  // Questions for selected lessons
   const { data: poolRes } = useQuery({
     queryKey: ['questions-pool', selectedLessons],
     queryFn: () => questionApi.getByLessonIds(selectedLessons),
@@ -59,9 +82,23 @@ export default function Exams() {
   });
 
   const openGenerate = () => {
-    setExamName(''); setSelectedLessons([]); setSelectedQuestions([]);
-    setEasyCount(3); setMediumCount(3); setHardCount(2); setMode('auto');
-    setDialogOpen(true);
+    setExamName(''); setSelectedLevelId(''); setSelectedSubjectId('');
+    setSelectedLessons([]); setSelectedQuestions([]);
+    setMaxScore(100); setEasyCount(3); setMediumCount(3); setHardCount(2);
+    setMode('auto'); setDialogOpen(true);
+  };
+
+  const handleLevelChange = (levelId: string) => {
+    setSelectedLevelId(levelId);
+    setSelectedSubjectId('');
+    setSelectedLessons([]);
+    setSelectedQuestions([]);
+  };
+
+  const handleSubjectChange = (subjectId: string) => {
+    setSelectedSubjectId(subjectId);
+    setSelectedLessons([]);
+    setSelectedQuestions([]);
   };
 
   const toggleLesson = (id: string) => {
@@ -75,19 +112,26 @@ export default function Exams() {
 
   const handleGenerate = () => {
     if (!examName.trim()) { toast({ title: 'Enter exam name', variant: 'destructive' }); return; }
+    if (!selectedLevelId) { toast({ title: 'Select a level', variant: 'destructive' }); return; }
+    if (!selectedSubjectId) { toast({ title: 'Select a subject', variant: 'destructive' }); return; }
     if (!selectedLessons.length) { toast({ title: 'Select at least one lesson', variant: 'destructive' }); return; }
     if (mode === 'manual' && !selectedQuestions.length) { toast({ title: 'Select at least one question', variant: 'destructive' }); return; }
 
     const config: ExamConfig = {
       name: examName,
+      levelId: selectedLevelId,
+      subjectId: selectedSubjectId,
       lessonIds: selectedLessons,
+      maxScore,
       mode,
       ...(mode === 'auto' ? { easyCount, mediumCount, hardCount } : { questionIds: selectedQuestions }),
     };
     generateMut.mutate(config);
   };
 
-  const getLessonName = (id: string) => allLessons.find(l => l.id === id)?.name ?? id;
+  const getLessonName = (id: string) => allLessonsFlat.find(l => l.id === id)?.name ?? id;
+  const getLevelName = (id: string) => levels.find(l => l.id === id)?.name ?? id;
+  const getSubjectName = (id: string) => allSubjects.find(s => s.id === id)?.name ?? id;
 
   return (
     <div className="space-y-6">
@@ -111,26 +155,29 @@ export default function Exams() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Level / Subject</TableHead>
                 <TableHead>Questions</TableHead>
-                <TableHead>Lessons</TableHead>
+                <TableHead>Max Score</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : !examsRes?.data?.length ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No exams yet. Generate one!</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No exams yet. Generate one!</TableCell></TableRow>
               ) : examsRes.data.map(exam => (
                 <TableRow key={exam.id}>
                   <TableCell className="font-medium text-foreground">{exam.name}</TableCell>
-                  <TableCell>{exam.questionIds.length}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {exam.lessonIds.map(lid => <Badge key={lid} variant="secondary" className="text-xs">{getLessonName(lid)}</Badge>)}
+                      <Badge variant="outline" className="text-xs">{getLevelName(exam.levelId)}</Badge>
+                      <Badge variant="secondary" className="text-xs">{getSubjectName(exam.subjectId)}</Badge>
                     </div>
                   </TableCell>
+                  <TableCell>{exam.questionIds.length}</TableCell>
+                  <TableCell>{exam.maxScore}</TableCell>
                   <TableCell><Badge variant={exam.status === 'published' ? 'default' : 'outline'}>{exam.status}</Badge></TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/take`)}><Play className="h-4 w-4" /></Button>
@@ -149,19 +196,51 @@ export default function Exams() {
             <DialogTitle>Generate Exam</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Exam Name *</Label><Input value={examName} onChange={e => setExamName(e.target.value)} placeholder="e.g. Math Quiz - Chapter 1" /></div>
+            <div>
+              <Label>Exam Name *</Label>
+              <Input value={examName} onChange={e => setExamName(e.target.value)} placeholder="e.g. Math Quiz - Chapter 1" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Level *</Label>
+                <Select value={selectedLevelId} onValueChange={handleLevelChange}>
+                  <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                  <SelectContent>
+                    {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Subject *</Label>
+                <Select value={selectedSubjectId} onValueChange={handleSubjectChange} disabled={!selectedLevelId}>
+                  <SelectTrigger><SelectValue placeholder={selectedLevelId ? "Select subject" : "Select level first"} /></SelectTrigger>
+                  <SelectContent>
+                    {filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             <div>
               <Label>Select Lessons *</Label>
               <div className="border rounded-md p-3 mt-1 max-h-40 overflow-y-auto space-y-2">
-                {allLessons.length === 0 && <p className="text-sm text-muted-foreground">No lessons available</p>}
-                {allLessons.map(l => (
+                {!selectedSubjectId ? (
+                  <p className="text-sm text-muted-foreground">Select level and subject first</p>
+                ) : filteredLessons.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No lessons available for this selection</p>
+                ) : filteredLessons.map(l => (
                   <div key={l.id} className="flex items-center gap-2">
                     <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
                     <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer text-sm">{l.name}</Label>
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <Label>Max Score</Label>
+              <Input type="number" min={1} value={maxScore} onChange={e => setMaxScore(parseInt(e.target.value) || 100)} />
             </div>
 
             <Tabs value={mode} onValueChange={v => setMode(v as 'manual' | 'auto')}>
