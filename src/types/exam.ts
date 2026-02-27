@@ -39,8 +39,11 @@ export interface Question {
 
 export interface ExamConfig {
   name: string;
+  levelId: string;
+  subjectId: string;
   lessonIds: string[];
   mode: 'manual' | 'auto';
+  maxScore: number;
   // For auto mode
   easyCount?: number;
   mediumCount?: number;
@@ -52,8 +55,11 @@ export interface ExamConfig {
 export interface Exam {
   id: string;
   name: string;
+  levelId: string;
+  subjectId: string;
   lessonIds: string[];
   questionIds: string[];
+  maxScore: number;
   createdAt: string;
   status: 'draft' | 'published';
 }

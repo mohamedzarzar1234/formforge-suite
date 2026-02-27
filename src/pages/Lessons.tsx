@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { lessonApi, unitApi } from '@/services/exam-api';
 import { levelApi, subjectApi } from '@/services/api';
@@ -13,15 +13,20 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, BookOpen, GripVertical, ArrowLeft, FolderPlus, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { InlineEdit } from '@/components/InlineEdit';
 import type { Lesson, Unit } from '@/types/exam';
 import type { Level, Subject } from '@/types';
 import {
   DndContext,
-  closestCenter,
+  closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
+  DragOverlay,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -31,14 +36,14 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 // ── Sortable Lesson Item ──
-function SortableLessonItem({ lesson, onEdit, onDelete, onViewQuestions }: {
+function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
   lesson: Lesson;
-  onEdit: (l: Lesson) => void;
+  onUpdate: (id: string, data: Partial<Lesson>) => void;
   onDelete: (id: string) => void;
   onViewQuestions: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 };
 
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow group">
@@ -47,69 +52,66 @@ function SortableLessonItem({ lesson, onEdit, onDelete, onViewQuestions }: {
       </button>
       <Badge variant="outline" className="shrink-0 text-xs font-mono">{lesson.order}</Badge>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm text-foreground truncate">{lesson.name}</p>
-        {lesson.description && <p className="text-xs text-muted-foreground truncate">{lesson.description}</p>}
+        <InlineEdit
+          value={lesson.name}
+          onSave={(val) => onUpdate(lesson.id, { name: val })}
+          className="font-medium text-sm text-foreground block truncate"
+        />
+        <InlineEdit
+          value={lesson.description || ''}
+          onSave={(val) => onUpdate(lesson.id, { description: val })}
+          className="text-xs text-muted-foreground block truncate"
+          placeholder="Add description..."
+        />
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onViewQuestions(lesson.id)}><BookOpen className="h-3.5 w-3.5" /></Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(lesson)}><Pencil className="h-3.5 w-3.5" /></Button>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDelete(lesson.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
       </div>
     </div>
   );
 }
 
-// ── Sortable Unit Group ──
-function SortableUnitGroup({ unit, lessons, onEditLesson, onDeleteLesson, onViewQuestions, onReorderLessons, onEditUnit, onDeleteUnit }: {
+// ── Lesson Overlay (for DragOverlay) ──
+function LessonOverlay({ lesson }: { lesson: Lesson }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card shadow-lg opacity-90">
+      <GripVertical className="h-4 w-4 text-muted-foreground" />
+      <Badge variant="outline" className="shrink-0 text-xs font-mono">{lesson.order}</Badge>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm text-foreground truncate">{lesson.name}</p>
+        {lesson.description && <p className="text-xs text-muted-foreground truncate">{lesson.description}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Droppable Unit Container ──
+function UnitDropZone({ unit, isOver, children, onUpdateUnit, onDeleteUnit }: {
   unit: Unit;
-  lessons: Lesson[];
-  onEditLesson: (l: Lesson) => void;
-  onDeleteLesson: (id: string) => void;
-  onViewQuestions: (id: string) => void;
-  onReorderLessons: (unitId: string, lessonIds: string[]) => void;
-  onEditUnit: (u: Unit) => void;
+  isOver: boolean;
+  children: React.ReactNode;
+  onUpdateUnit: (id: string, data: Partial<Unit>) => void;
   onDeleteUnit: (id: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: unit.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const handleLessonDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const ids = lessons.map(l => l.id);
-    const oldIdx = ids.indexOf(active.id as string);
-    const newIdx = ids.indexOf(over.id as string);
-    const newIds = [...ids];
-    newIds.splice(oldIdx, 1);
-    newIds.splice(newIdx, 0, active.id as string);
-    onReorderLessons(unit.id, newIds);
-  };
+  const { setNodeRef } = useDroppable({ id: unit.id });
 
   return (
-    <div ref={setNodeRef} style={style} className="rounded-xl border bg-card overflow-hidden">
+    <div className={`rounded-xl border bg-card overflow-hidden transition-all ${isOver ? 'ring-2 ring-primary ring-offset-2' : ''}`}>
       <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b">
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground">
-          <GripVertical className="h-4 w-4" />
-        </button>
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
         <Badge className="bg-primary/10 text-primary border-0">{unit.order}</Badge>
-        <h3 className="font-semibold text-sm text-foreground flex-1">{unit.name}</h3>
-        <span className="text-xs text-muted-foreground">{lessons.length} lesson{lessons.length !== 1 ? 's' : ''}</span>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditUnit(unit)}><Pencil className="h-3.5 w-3.5" /></Button>
+        <div className="flex-1">
+          <InlineEdit
+            value={unit.name}
+            onSave={(val) => onUpdateUnit(unit.id, { name: val })}
+            className="font-semibold text-sm text-foreground"
+          />
+        </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDeleteUnit(unit.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
       </div>
-      <div className="p-3 space-y-2">
-        {lessons.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No lessons in this unit</p>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd}>
-            <SortableContext items={lessons.map(l => l.id)} strategy={verticalListSortingStrategy}>
-              {lessons.map(lesson => (
-                <SortableLessonItem key={lesson.id} lesson={lesson} onEdit={onEditLesson} onDelete={onDeleteLesson} onViewQuestions={onViewQuestions} />
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
+      <div ref={setNodeRef} className="p-3 space-y-2 min-h-[48px]">
+        {children}
       </div>
     </div>
   );
@@ -179,9 +181,13 @@ export default function Lessons() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Lesson | null>(null);
-  const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [form, setForm] = useState({ name: '', description: '', unitId: '', order: 1 });
   const [unitForm, setUnitForm] = useState({ name: '' });
+  const [pendingLessonForm, setPendingLessonForm] = useState<typeof form | null>(null);
+
+  // DnD state
+  const [containers, setContainers] = useState<Record<string, string[]>>({});
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 100 }) });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 100 }) });
@@ -203,19 +209,99 @@ export default function Lessons() {
   const allLessons = lessonsRes?.data ?? [];
   const allUnits = (unitsRes?.data ?? []).sort((a, b) => a.order - b.order);
 
-  const groupedLessons = useMemo(() => {
-    const groups: Record<string, Lesson[]> = {};
-    allUnits.forEach(u => { groups[u.id] = []; });
-    groups['__ungrouped__'] = [];
+  // Sync containers from server data
+  useEffect(() => {
+    const c: Record<string, string[]> = {};
+    allUnits.forEach(u => { c[u.id] = []; });
+    c['__ungrouped__'] = [];
     allLessons.forEach(l => {
-      const key = l.unitId && groups[l.unitId] !== undefined ? l.unitId : '__ungrouped__';
-      groups[key].push(l);
+      const key = l.unitId && c[l.unitId] !== undefined ? l.unitId : '__ungrouped__';
+      c[key].push(l.id);
     });
-    Object.values(groups).forEach(arr => arr.sort((a, b) => a.order - b.order));
-    return groups;
+    Object.values(c).forEach(arr => arr.sort((a, b) => {
+      const la = allLessons.find(l => l.id === a);
+      const lb = allLessons.find(l => l.id === b);
+      return (la?.order ?? 0) - (lb?.order ?? 0);
+    }));
+    setContainers(c);
   }, [allLessons, allUnits]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const activeLesson = useMemo(() => activeId ? allLessons.find(l => l.id === activeId) : null, [activeId, allLessons]);
+
+  // ── DnD helpers ──
+  const findContainer = useCallback((id: string): string | undefined => {
+    if (containers[id] !== undefined) return id;
+    for (const [containerId, lessonIds] of Object.entries(containers)) {
+      if (lessonIds.includes(id)) return containerId;
+    }
+    return undefined;
+  }, [containers]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeContainer = findContainer(active.id as string);
+    const overContainer = findContainer(over.id as string);
+
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+    setContainers(prev => {
+      const activeItems = [...(prev[activeContainer] || [])];
+      const overItems = [...(prev[overContainer] || [])];
+      const activeIndex = activeItems.indexOf(active.id as string);
+      if (activeIndex === -1) return prev;
+
+      const overIndex = over.id === overContainer
+        ? overItems.length
+        : overItems.indexOf(over.id as string);
+
+      activeItems.splice(activeIndex, 1);
+      overItems.splice(Math.max(0, overIndex), 0, active.id as string);
+
+      return { ...prev, [activeContainer]: activeItems, [overContainer]: overItems };
+    });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+
+    const activeContainer = findContainer(active.id as string);
+    const overContainer = findContainer(over.id as string);
+    if (!activeContainer || !overContainer) return;
+
+    const lesson = allLessons.find(l => l.id === active.id);
+    if (!lesson) return;
+
+    // Same container - reorder
+    if (activeContainer === overContainer) {
+      const items = containers[activeContainer];
+      const oldIdx = items.indexOf(active.id as string);
+      const newIdx = items.indexOf(over.id as string);
+      if (oldIdx !== newIdx) {
+        const newItems = [...items];
+        newItems.splice(oldIdx, 1);
+        newItems.splice(newIdx, 0, active.id as string);
+        setContainers(prev => ({ ...prev, [activeContainer]: newItems }));
+        reorderLessonsMut.mutate(newItems);
+      }
+      return;
+    }
+
+    // Cross-container - update unitId + reorder
+    const newUnitId = overContainer === '__ungrouped__' ? '' : overContainer;
+    updateLessonMut.mutate({ id: lesson.id, data: { unitId: newUnitId } });
+    const targetItems = containers[overContainer];
+    if (targetItems?.length) reorderLessonsMut.mutate(targetItems);
+  };
 
   // ── Mutations ──
   const invalidate = () => {
@@ -229,7 +315,7 @@ export default function Lessons() {
   });
   const updateLessonMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Lesson> }) => lessonApi.update(id, data),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson updated' }); setDialogOpen(false); },
+    onSuccess: () => { invalidate(); toast({ title: 'Lesson updated' }); },
   });
   const deleteLessonMut = useMutation({
     mutationFn: (id: string) => lessonApi.delete(id),
@@ -241,19 +327,25 @@ export default function Lessons() {
   });
   const createUnitMut = useMutation({
     mutationFn: (data: Omit<Unit, 'id' | 'createdAt'>) => unitApi.create(data),
-    onSuccess: (res) => { invalidate(); toast({ title: 'Unit created' }); setUnitDialogOpen(false); return res; },
+    onSuccess: (res) => {
+      invalidate();
+      toast({ title: 'Unit created' });
+      setUnitDialogOpen(false);
+      // If we came from lesson form, reopen it with new unit selected
+      if (pendingLessonForm) {
+        setForm({ ...pendingLessonForm, unitId: res.data.id });
+        setDialogOpen(true);
+        setPendingLessonForm(null);
+      }
+    },
   });
   const updateUnitMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Unit> }) => unitApi.update(id, data),
-    onSuccess: () => { invalidate(); toast({ title: 'Unit updated' }); setUnitDialogOpen(false); },
+    onSuccess: () => { invalidate(); toast({ title: 'Unit updated' }); },
   });
   const deleteUnitMut = useMutation({
     mutationFn: (id: string) => unitApi.delete(id),
     onSuccess: () => { invalidate(); toast({ title: 'Unit deleted' }); },
-  });
-  const reorderUnitsMut = useMutation({
-    mutationFn: (ids: string[]) => unitApi.reorder(ids),
-    onSuccess: () => invalidate(),
   });
 
   // ── Handlers ──
@@ -275,28 +367,17 @@ export default function Lessons() {
     else createLessonMut.mutate(data);
   };
 
-  const openCreateUnit = () => { setEditingUnit(null); setUnitForm({ name: '' }); setUnitDialogOpen(true); };
-  const openEditUnit = (u: Unit) => { setEditingUnit(u); setUnitForm({ name: u.name }); setUnitDialogOpen(true); };
+  const openCreateUnit = () => { setUnitForm({ name: '' }); setUnitDialogOpen(true); };
   const handleSubmitUnit = () => {
     if (!unitForm.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
-    if (editingUnit) updateUnitMut.mutate({ id: editingUnit.id, data: { name: unitForm.name } });
-    else createUnitMut.mutate({ name: unitForm.name, subjectId: selectedSubject!.id, levelId: selectedLevel!.id, order: allUnits.length + 1 });
+    createUnitMut.mutate({ name: unitForm.name, subjectId: selectedSubject!.id, levelId: selectedLevel!.id, order: allUnits.length + 1 });
   };
 
-  const handleReorderLessons = (unitId: string, lessonIds: string[]) => {
-    reorderLessonsMut.mutate(lessonIds);
+  const handleInlineUpdateLesson = (id: string, data: Partial<Lesson>) => {
+    updateLessonMut.mutate({ id, data });
   };
-
-  const handleUnitDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const ids = allUnits.map(u => u.id);
-    const oldIdx = ids.indexOf(active.id as string);
-    const newIdx = ids.indexOf(over.id as string);
-    const newIds = [...ids];
-    newIds.splice(oldIdx, 1);
-    newIds.splice(newIdx, 0, active.id as string);
-    reorderUnitsMut.mutate(newIds);
+  const handleInlineUpdateUnit = (id: string, data: Partial<Unit>) => {
+    updateUnitMut.mutate({ id, data });
   };
 
   // ── Step rendering ──
@@ -325,7 +406,7 @@ export default function Lessons() {
   }
 
   // ── Full lessons view ──
-  const ungroupedLessons = groupedLessons['__ungrouped__'] ?? [];
+  const ungroupedLessons = (containers['__ungrouped__'] ?? []).map(id => allLessons.find(l => l.id === id)).filter(Boolean) as Lesson[];
 
   return (
     <div className="space-y-6">
@@ -348,51 +429,72 @@ export default function Lessons() {
         </div>
       </div>
 
-      {/* Units with drag-and-drop */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUnitDragEnd}>
-        <SortableContext items={allUnits.map(u => u.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4">
-            {allUnits.map(unit => (
-              <SortableUnitGroup
+      {/* Units with cross-unit DnD */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="space-y-4">
+          {allUnits.map(unit => {
+            const unitLessons = (containers[unit.id] ?? []).map(id => allLessons.find(l => l.id === id)).filter(Boolean) as Lesson[];
+            const isOver = false; // Will highlight via CSS
+            return (
+              <UnitDropZone
                 key={unit.id}
                 unit={unit}
-                lessons={groupedLessons[unit.id] ?? []}
-                onEditLesson={openEditLesson}
-                onDeleteLesson={id => deleteLessonMut.mutate(id)}
-                onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
-                onReorderLessons={handleReorderLessons}
-                onEditUnit={openEditUnit}
+                isOver={isOver}
+                onUpdateUnit={handleInlineUpdateUnit}
                 onDeleteUnit={id => deleteUnitMut.mutate(id)}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+              >
+                <SortableContext items={containers[unit.id] ?? []} strategy={verticalListSortingStrategy}>
+                  {unitLessons.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Drop lessons here or add new ones</p>
+                  ) : (
+                    unitLessons.map(lesson => (
+                      <SortableLessonItem
+                        key={lesson.id}
+                        lesson={lesson}
+                        onUpdate={handleInlineUpdateLesson}
+                        onDelete={id => deleteLessonMut.mutate(id)}
+                        onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                      />
+                    ))
+                  )}
+                </SortableContext>
+              </UnitDropZone>
+            );
+          })}
+        </div>
 
-      {/* Ungrouped lessons */}
-      {ungroupedLessons.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Ungrouped Lessons</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {ungroupedLessons.map(lesson => (
-              <div key={lesson.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow group">
-                <Badge variant="outline" className="shrink-0 text-xs font-mono">{lesson.order}</Badge>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-foreground truncate">{lesson.name}</p>
-                  {lesson.description && <p className="text-xs text-muted-foreground truncate">{lesson.description}</p>}
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/questions?lessonId=${lesson.id}`)}><BookOpen className="h-3.5 w-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditLesson(lesson)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteLessonMut.mutate(lesson.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+        {/* Ungrouped lessons */}
+        {ungroupedLessons.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Ungrouped Lessons</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <SortableContext items={containers['__ungrouped__'] ?? []} strategy={verticalListSortingStrategy}>
+                {ungroupedLessons.map(lesson => (
+                  <SortableLessonItem
+                    key={lesson.id}
+                    lesson={lesson}
+                    onUpdate={handleInlineUpdateLesson}
+                    onDelete={id => deleteLessonMut.mutate(id)}
+                    onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                  />
+                ))}
+              </SortableContext>
+            </CardContent>
+          </Card>
+        )}
+
+        <DragOverlay>
+          {activeLesson && <LessonOverlay lesson={activeLesson} />}
+        </DragOverlay>
+      </DndContext>
 
       {allUnits.length === 0 && ungroupedLessons.length === 0 && (
         <Card>
@@ -420,7 +522,11 @@ export default function Lessons() {
                     {allUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="icon" onClick={() => { setDialogOpen(false); openCreateUnit(); }}><FolderPlus className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => {
+                  setPendingLessonForm({ ...form });
+                  setDialogOpen(false);
+                  openCreateUnit();
+                }}><FolderPlus className="h-4 w-4" /></Button>
               </div>
             </div>
             <div><Label>Order</Label><Input type="number" min={1} value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
@@ -435,19 +541,32 @@ export default function Lessons() {
       </Dialog>
 
       {/* Unit Dialog */}
-      <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
+      <Dialog open={unitDialogOpen} onOpenChange={(open) => {
+        setUnitDialogOpen(open);
+        if (!open && pendingLessonForm) {
+          // User cancelled unit creation, reopen lesson form
+          setForm(pendingLessonForm);
+          setDialogOpen(true);
+          setPendingLessonForm(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingUnit ? 'Edit Unit' : 'Add Unit'}</DialogTitle>
+            <DialogTitle>Add Unit</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div><Label>Unit Name *</Label><Input value={unitForm.name} onChange={e => setUnitForm({ name: e.target.value })} placeholder="e.g. Unit 1: Basics" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUnitDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitUnit} disabled={createUnitMut.isPending || updateUnitMut.isPending}>
-              {editingUnit ? 'Update' : 'Create'}
-            </Button>
+            <Button variant="outline" onClick={() => {
+              setUnitDialogOpen(false);
+              if (pendingLessonForm) {
+                setForm(pendingLessonForm);
+                setDialogOpen(true);
+                setPendingLessonForm(null);
+              }
+            }}>Cancel</Button>
+            <Button onClick={handleSubmitUnit} disabled={createUnitMut.isPending}>Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
