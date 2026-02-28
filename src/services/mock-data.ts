@@ -45,9 +45,9 @@ export const defaultTemplates: TemplateConfig = {
 };
 
 export const initialLevels: Level[] = [
-  { id: 'lvl-1', name: 'Primary', description: 'Primary education level (Grades 1-5)' },
-  { id: 'lvl-2', name: 'Middle', description: 'Middle school education (Grades 6-8)' },
-  { id: 'lvl-3', name: 'High', description: 'High school education (Grades 9-12)' },
+  { id: 'lvl-1', name: 'Primary', description: 'Primary education level (Grades 1-5)', subjectIds: ['sub-1', 'sub-2', 'sub-3'] },
+  { id: 'lvl-2', name: 'Middle', description: 'Middle school education (Grades 6-8)', subjectIds: ['sub-1', 'sub-2', 'sub-3', 'sub-4'] },
+  { id: 'lvl-3', name: 'High', description: 'High school education (Grades 9-12)', subjectIds: ['sub-1', 'sub-2', 'sub-3', 'sub-4', 'sub-5'] },
 ];
 
 export const initialClasses: SchoolClass[] = [

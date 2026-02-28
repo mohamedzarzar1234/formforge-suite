@@ -35,6 +35,51 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// ── Inline Order Edit ──
+function InlineOrderEdit({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(String(value));
+
+  useEffect(() => { setVal(String(value)); }, [value]);
+
+  if (!editing) {
+    return (
+      <Badge
+        variant="outline"
+        className="shrink-0 text-xs font-mono cursor-pointer hover:bg-primary/10 transition-colors"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      >
+        {value}
+      </Badge>
+    );
+  }
+
+  return (
+    <Input
+      type="number"
+      min={1}
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onBlur={() => {
+        const n = parseInt(val);
+        if (n && n !== value) onSave(n);
+        setEditing(false);
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          const n = parseInt(val);
+          if (n && n !== value) onSave(n);
+          setEditing(false);
+        }
+        if (e.key === 'Escape') setEditing(false);
+      }}
+      className="w-14 h-6 text-xs text-center p-1"
+      autoFocus
+      onClick={e => e.stopPropagation()}
+    />
+  );
+}
+
 // ── Sortable Lesson Item ──
 function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
   lesson: Lesson;
@@ -50,19 +95,10 @@ function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
       <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground">
         <GripVertical className="h-4 w-4" />
       </button>
-      <Badge variant="outline" className="shrink-0 text-xs font-mono">{lesson.order}</Badge>
+      <InlineOrderEdit value={lesson.order} onSave={(v) => onUpdate(lesson.id, { order: v })} />
       <div className="flex-1 min-w-0">
-        <InlineEdit
-          value={lesson.name}
-          onSave={(val) => onUpdate(lesson.id, { name: val })}
-          className="font-medium text-sm text-foreground block truncate"
-        />
-        <InlineEdit
-          value={lesson.description || ''}
-          onSave={(val) => onUpdate(lesson.id, { description: val })}
-          className="text-xs text-muted-foreground block truncate"
-          placeholder="Add description..."
-        />
+        <InlineEdit value={lesson.name} onSave={(val) => onUpdate(lesson.id, { name: val })} className="font-medium text-sm text-foreground block truncate" />
+        <InlineEdit value={lesson.description || ''} onSave={(val) => onUpdate(lesson.id, { description: val })} className="text-xs text-muted-foreground block truncate" placeholder="Add description..." />
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onViewQuestions(lesson.id)}><BookOpen className="h-3.5 w-3.5" /></Button>
@@ -86,32 +122,66 @@ function LessonOverlay({ lesson }: { lesson: Lesson }) {
   );
 }
 
-// ── Droppable Unit Container ──
-function UnitDropZone({ unit, isOver, children, onUpdateUnit, onDeleteUnit }: {
+// ── Sortable Unit Container ──
+function SortableUnitDropZone({ unit, isOver, children, onUpdateUnit, onDeleteUnit }: {
   unit: Unit;
   isOver: boolean;
   children: React.ReactNode;
   onUpdateUnit: (id: string, data: Partial<Unit>) => void;
   onDeleteUnit: (id: string) => void;
 }) {
-  const { setNodeRef } = useDroppable({ id: unit.id });
+  const { setNodeRef: setDropRef } = useDroppable({ id: unit.id });
 
   return (
     <div className={`rounded-xl border bg-card overflow-hidden transition-all ${isOver ? 'ring-2 ring-primary ring-offset-2' : ''}`}>
       <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b">
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-        <Badge className="bg-primary/10 text-primary border-0">{unit.order}</Badge>
+        <InlineOrderEdit value={unit.order} onSave={(v) => onUpdateUnit(unit.id, { order: v })} />
         <div className="flex-1">
-          <InlineEdit
-            value={unit.name}
-            onSave={(val) => onUpdateUnit(unit.id, { name: val })}
-            className="font-semibold text-sm text-foreground"
-          />
+          <InlineEdit value={unit.name} onSave={(val) => onUpdateUnit(unit.id, { name: val })} className="font-semibold text-sm text-foreground" />
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDeleteUnit(unit.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
       </div>
-      <div ref={setNodeRef} className="p-3 space-y-2 min-h-[48px]">
+      <div ref={setDropRef} className="p-3 space-y-2 min-h-[48px]">
         {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Draggable Unit Wrapper ──
+function DraggableUnit({ unit, children, onUpdateUnit, onDeleteUnit }: {
+  unit: Unit;
+  children: React.ReactNode;
+  onUpdateUnit: (id: string, data: Partial<Unit>) => void;
+  onDeleteUnit: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `unit-drag-${unit.id}` });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div className="flex items-center gap-1">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1">
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="flex-1">
+          <SortableUnitDropZone unit={unit} isOver={false} onUpdateUnit={onUpdateUnit} onDeleteUnit={onDeleteUnit}>
+            {children}
+          </SortableUnitDropZone>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Unit Overlay ──
+function UnitOverlay({ unit }: { unit: Unit }) {
+  return (
+    <div className="rounded-xl border bg-card shadow-lg opacity-90 p-4">
+      <div className="flex items-center gap-2">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        <Badge className="bg-primary/10 text-primary border-0">{unit.order}</Badge>
+        <span className="font-semibold text-sm">{unit.name}</span>
       </div>
     </div>
   );
@@ -188,6 +258,7 @@ export default function Lessons() {
   // DnD state
   const [containers, setContainers] = useState<Record<string, string[]>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragType, setDragType] = useState<'lesson' | 'unit' | null>(null);
 
   const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 100 }) });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 100 }) });
@@ -229,6 +300,11 @@ export default function Lessons() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const activeLesson = useMemo(() => activeId ? allLessons.find(l => l.id === activeId) : null, [activeId, allLessons]);
+  const activeUnit = useMemo(() => {
+    if (!activeId || !activeId.startsWith('unit-drag-')) return null;
+    const unitId = activeId.replace('unit-drag-', '');
+    return allUnits.find(u => u.id === unitId);
+  }, [activeId, allUnits]);
 
   // ── DnD helpers ──
   const findContainer = useCallback((id: string): string | undefined => {
@@ -240,12 +316,14 @@ export default function Lessons() {
   }, [containers]);
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+    const id = event.active.id as string;
+    setActiveId(id);
+    setDragType(id.startsWith('unit-drag-') ? 'unit' : 'lesson');
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || dragType === 'unit') return;
 
     const activeContainer = findContainer(active.id as string);
     const overContainer = findContainer(over.id as string);
@@ -258,10 +336,7 @@ export default function Lessons() {
       const activeIndex = activeItems.indexOf(active.id as string);
       if (activeIndex === -1) return prev;
 
-      const overIndex = over.id === overContainer
-        ? overItems.length
-        : overItems.indexOf(over.id as string);
-
+      const overIndex = over.id === overContainer ? overItems.length : overItems.indexOf(over.id as string);
       activeItems.splice(activeIndex, 1);
       overItems.splice(Math.max(0, overIndex), 0, active.id as string);
 
@@ -272,8 +347,28 @@ export default function Lessons() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+    setDragType(null);
     if (!over) return;
 
+    // Unit reordering
+    if ((active.id as string).startsWith('unit-drag-')) {
+      const activeUnitId = (active.id as string).replace('unit-drag-', '');
+      const overUnitId = (over.id as string).replace('unit-drag-', '');
+      if (activeUnitId !== overUnitId) {
+        const unitIds = allUnits.map(u => u.id);
+        const oldIdx = unitIds.indexOf(activeUnitId);
+        const newIdx = unitIds.indexOf(overUnitId);
+        if (oldIdx !== -1 && newIdx !== -1) {
+          const newOrder = [...unitIds];
+          newOrder.splice(oldIdx, 1);
+          newOrder.splice(newIdx, 0, activeUnitId);
+          reorderUnitsMut.mutate(newOrder);
+        }
+      }
+      return;
+    }
+
+    // Lesson reordering
     const activeContainer = findContainer(active.id as string);
     const overContainer = findContainer(over.id as string);
     if (!activeContainer || !overContainer) return;
@@ -281,7 +376,6 @@ export default function Lessons() {
     const lesson = allLessons.find(l => l.id === active.id);
     if (!lesson) return;
 
-    // Same container - reorder within unit
     if (activeContainer === overContainer) {
       const items = containers[activeContainer];
       const oldIdx = items.indexOf(active.id as string);
@@ -291,13 +385,11 @@ export default function Lessons() {
         newItems.splice(oldIdx, 1);
         newItems.splice(newIdx, 0, active.id as string);
         setContainers(prev => ({ ...prev, [activeContainer]: newItems }));
-        // Reorder only lessons within this unit
         reorderWithinUnitMut.mutate(newItems);
       }
       return;
     }
 
-    // Cross-container - update unitId and reorder target container
     const newUnitId = overContainer === '__ungrouped__' ? '' : overContainer;
     const targetItems = containers[overContainer] || [];
     moveToUnitMut.mutate({ lessonId: lesson.id, newUnitId, targetOrder: targetItems });
@@ -336,7 +428,6 @@ export default function Lessons() {
       invalidate();
       toast({ title: 'Unit created' });
       setUnitDialogOpen(false);
-      // If we came from lesson form, reopen it with new unit selected
       if (pendingLessonForm) {
         setForm({ ...pendingLessonForm, unitId: res.data.id });
         setDialogOpen(true);
@@ -352,17 +443,16 @@ export default function Lessons() {
     mutationFn: (id: string) => unitApi.delete(id),
     onSuccess: () => { invalidate(); toast({ title: 'Unit deleted' }); },
   });
+  const reorderUnitsMut = useMutation({
+    mutationFn: (ids: string[]) => unitApi.reorder(ids),
+    onSuccess: () => { invalidate(); toast({ title: 'Units reordered' }); },
+  });
 
   // ── Handlers ──
   const openCreateLesson = () => {
     const maxOrder = Math.max(0, ...allLessons.map(l => l.order));
     setEditing(null);
     setForm({ name: '', description: '', unitId: allUnits[0]?.id ?? '', order: maxOrder + 1 });
-    setDialogOpen(true);
-  };
-  const openEditLesson = (l: Lesson) => {
-    setEditing(l);
-    setForm({ name: l.name, description: l.description, unitId: l.unitId, order: l.order });
     setDialogOpen(true);
   };
   const handleSubmitLesson = () => {
@@ -399,19 +489,24 @@ export default function Lessons() {
   }
 
   if (!selectedSubject) {
+    // Filter subjects by level's subjectIds
+    const levelSubjects = selectedLevel.subjectIds?.length > 0
+      ? subjects.filter(s => selectedLevel.subjectIds.includes(s.id))
+      : subjects;
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Lessons</h1>
           <p className="text-sm text-muted-foreground">Manage lessons by level and subject</p>
         </div>
-        <SubjectSelector subjects={subjects} levelName={selectedLevel.name} onSelect={setSelectedSubject} onBack={() => setSelectedLevel(null)} />
+        <SubjectSelector subjects={levelSubjects} levelName={selectedLevel.name} onSelect={setSelectedSubject} onBack={() => setSelectedLevel(null)} />
       </div>
     );
   }
 
   // ── Full lessons view ──
   const ungroupedLessons = (containers['__ungrouped__'] ?? []).map(id => allLessons.find(l => l.id === id)).filter(Boolean) as Lesson[];
+  const unitDragIds = allUnits.map(u => `unit-drag-${u.id}`);
 
   return (
     <div className="space-y-6">
@@ -434,7 +529,7 @@ export default function Lessons() {
         </div>
       </div>
 
-      {/* Units with cross-unit DnD */}
+      {/* Units + Lessons with DnD */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -442,37 +537,32 @@ export default function Lessons() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="space-y-4">
-          {allUnits.map(unit => {
-            const unitLessons = (containers[unit.id] ?? []).map(id => allLessons.find(l => l.id === id)).filter(Boolean) as Lesson[];
-            const isOver = false; // Will highlight via CSS
-            return (
-              <UnitDropZone
-                key={unit.id}
-                unit={unit}
-                isOver={isOver}
-                onUpdateUnit={handleInlineUpdateUnit}
-                onDeleteUnit={id => deleteUnitMut.mutate(id)}
-              >
-                <SortableContext items={containers[unit.id] ?? []} strategy={verticalListSortingStrategy}>
-                  {unitLessons.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Drop lessons here or add new ones</p>
-                  ) : (
-                    unitLessons.map(lesson => (
-                      <SortableLessonItem
-                        key={lesson.id}
-                        lesson={lesson}
-                        onUpdate={handleInlineUpdateLesson}
-                        onDelete={id => deleteLessonMut.mutate(id)}
-                        onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
-                      />
-                    ))
-                  )}
-                </SortableContext>
-              </UnitDropZone>
-            );
-          })}
-        </div>
+        <SortableContext items={unitDragIds} strategy={verticalListSortingStrategy}>
+          <div className="space-y-4">
+            {allUnits.map(unit => {
+              const unitLessons = (containers[unit.id] ?? []).map(id => allLessons.find(l => l.id === id)).filter(Boolean) as Lesson[];
+              return (
+                <DraggableUnit key={unit.id} unit={unit} onUpdateUnit={handleInlineUpdateUnit} onDeleteUnit={id => deleteUnitMut.mutate(id)}>
+                  <SortableContext items={containers[unit.id] ?? []} strategy={verticalListSortingStrategy}>
+                    {unitLessons.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">Drop lessons here or add new ones</p>
+                    ) : (
+                      unitLessons.map(lesson => (
+                        <SortableLessonItem
+                          key={lesson.id}
+                          lesson={lesson}
+                          onUpdate={handleInlineUpdateLesson}
+                          onDelete={id => deleteLessonMut.mutate(id)}
+                          onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                        />
+                      ))
+                    )}
+                  </SortableContext>
+                </DraggableUnit>
+              );
+            })}
+          </div>
+        </SortableContext>
 
         {/* Ungrouped lessons */}
         {ungroupedLessons.length > 0 && (
@@ -498,6 +588,7 @@ export default function Lessons() {
 
         <DragOverlay>
           {activeLesson && <LessonOverlay lesson={activeLesson} />}
+          {activeUnit && <UnitOverlay unit={activeUnit} />}
         </DragOverlay>
       </DndContext>
 
@@ -549,7 +640,6 @@ export default function Lessons() {
       <Dialog open={unitDialogOpen} onOpenChange={(open) => {
         setUnitDialogOpen(open);
         if (!open && pendingLessonForm) {
-          // User cancelled unit creation, reopen lesson form
           setForm(pendingLessonForm);
           setDialogOpen(true);
           setPendingLessonForm(null);

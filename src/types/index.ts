@@ -86,6 +86,7 @@ export interface Level {
   id: string;
   name: string;
   description: string;
+  subjectIds: string[];
 }
 
 export interface Subject {
