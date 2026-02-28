@@ -185,9 +185,6 @@ export default function SubjectDetail() {
 }
 
 function LevelLessonsView({ lessons, units, levelId, selectedLevelId }: { lessons: Lesson[]; units: Unit[]; levelId: string; selectedLevelId: string | null }) {
-  if (selectedLevelId !== levelId) return null;
-
-  const ungroupedLessons = lessons.filter(l => !l.unitId || !units.find(u => u.id === l.unitId));
   const unitLessonsMap = useMemo(() => {
     const map = new Map<string, Lesson[]>();
     units.forEach(u => map.set(u.id, []));
@@ -196,10 +193,13 @@ function LevelLessonsView({ lessons, units, levelId, selectedLevelId }: { lesson
         map.get(l.unitId)!.push(l);
       }
     });
-    // Sort lessons within each unit
     map.forEach((arr) => arr.sort((a, b) => a.order - b.order));
     return map;
   }, [lessons, units]);
+
+  const ungroupedLessons = useMemo(() => lessons.filter(l => !l.unitId || !units.find(u => u.id === l.unitId)), [lessons, units]);
+
+  if (selectedLevelId !== levelId) return null;
 
   if (lessons.length === 0 && units.length === 0) {
     return <p className="text-muted-foreground text-center py-8">No lessons or units for this level</p>;
