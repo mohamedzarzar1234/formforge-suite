@@ -14,36 +14,12 @@ export default function LevelDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: levelRes, isLoading } = useQuery({
-    queryKey: ['level', id],
-    queryFn: () => levelApi.getById(id!),
-    enabled: !!id,
-  });
-
-  const { data: classesRes } = useQuery({
-    queryKey: ['classes'],
-    queryFn: () => classApi.getAll({ page: 1, limit: 1000 }),
-  });
-
-  const { data: subjectsRes } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }),
-  });
-
-  const { data: teachersRes } = useQuery({
-    queryKey: ['teachers'],
-    queryFn: () => teacherApi.getAll({ page: 1, limit: 1000 }),
-  });
-
-  const { data: studentsRes } = useQuery({
-    queryKey: ['students'],
-    queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }),
-  });
-
-  const { data: managersRes } = useQuery({
-    queryKey: ['managers'],
-    queryFn: () => managerApi.getAll({ page: 1, limit: 1000 }),
-  });
+  const { data: levelRes, isLoading } = useQuery({ queryKey: ['level', id], queryFn: () => levelApi.getById(id!), enabled: !!id });
+  const { data: classesRes } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: teachersRes } = useQuery({ queryKey: ['teachers'], queryFn: () => teacherApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: studentsRes } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: managersRes } = useQuery({ queryKey: ['managers'], queryFn: () => managerApi.getAll({ page: 1, limit: 1000 }) });
 
   const level = levelRes?.data;
   const allClasses = classesRes?.data || [];
@@ -55,46 +31,38 @@ export default function LevelDetail() {
   const levelClasses = allClasses.filter((c: SchoolClass) => c.levelId === id);
   const levelClassIds = levelClasses.map((c: SchoolClass) => c.id);
 
-  // Find subjects taught in this level's classes
-  const subjectTeacherMap = new Map<string, Set<string>>();
-  allTeachers.forEach((t: Teacher) => {
-    t.classAssignments.forEach(ca => {
-      if (levelClassIds.includes(ca.classId)) {
-        ca.subjectIds.forEach(sId => {
-          if (!subjectTeacherMap.has(sId)) subjectTeacherMap.set(sId, new Set());
-          subjectTeacherMap.get(sId)!.add(t.id);
-        });
-      }
-    });
-  });
+  // Level's subjects from the subjectIds relation
+  const levelSubjects = allSubjects.filter(s => (level?.subjectIds || []).includes(s.id));
 
-  const levelSubjectIds = Array.from(subjectTeacherMap.keys());
-  const levelSubjects = allSubjects.filter(s => levelSubjectIds.includes(s.id));
+  // For each subject, find teachers who teach it in this level's classes
+  const getTeachersForSubject = (subjectId: string) => {
+    return allTeachers.filter((t: Teacher) =>
+      t.classAssignments.some(ca =>
+        levelClassIds.includes(ca.classId) && ca.subjectIds.includes(subjectId)
+      )
+    );
+  };
+
+  // For a teacher+subject combo, get classes in this level
+  const getClassesForTeacherSubject = (teacher: Teacher, subjectId: string) => {
+    return teacher.classAssignments
+      .filter(ca => levelClassIds.includes(ca.classId) && ca.subjectIds.includes(subjectId))
+      .map(ca => allClasses.find(c => c.id === ca.classId))
+      .filter(Boolean) as SchoolClass[];
+  };
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return (<div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>);
   }
 
   if (!level) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Level not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate('/levels')}>Back to Levels</Button>
-      </div>
-    );
+    return (<div className="text-center py-12"><p className="text-muted-foreground">Level not found</p><Button variant="outline" className="mt-4" onClick={() => navigate('/levels')}>Back to Levels</Button></div>);
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/levels')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/levels')}><ArrowLeft className="h-5 w-5" /></Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{level.name}</h1>
           <p className="text-muted-foreground">{level.description}</p>
@@ -104,7 +72,7 @@ export default function LevelDetail() {
       <Tabs defaultValue="information">
         <TabsList>
           <TabsTrigger value="information">Information</TabsTrigger>
-          <TabsTrigger value="subjects">Subjects & Teachers</TabsTrigger>
+          <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="classes">Classes</TabsTrigger>
         </TabsList>
 
@@ -131,7 +99,7 @@ export default function LevelDetail() {
 
         <TabsContent value="subjects">
           <Card>
-            <CardHeader><CardTitle>Subjects & Teachers in {level.name}</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Subjects in {level.name}</CardTitle></CardHeader>
             <CardContent>
               {levelSubjects.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">No subjects assigned to this level</p>
@@ -141,23 +109,36 @@ export default function LevelDetail() {
                     <TableRow>
                       <TableHead>Subject</TableHead>
                       <TableHead>Code</TableHead>
-                      <TableHead>Teachers</TableHead>
+                      <TableHead>Teachers & Classes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {levelSubjects.map(subject => {
-                      const teacherIds = Array.from(subjectTeacherMap.get(subject.id) || []);
-                      const subjectTeachers = allTeachers.filter((t: Teacher) => teacherIds.includes(t.id));
+                      const subjectTeachers = getTeachersForSubject(subject.id);
                       return (
                         <TableRow key={subject.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/subjects/${subject.id}`)}>
                           <TableCell className="font-medium">{subject.name}</TableCell>
                           <TableCell><Badge variant="outline">{subject.code}</Badge></TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {subjectTeachers.map((t: Teacher) => (
-                                <Badge key={t.id} variant="secondary">{t.firstname} {t.lastname}</Badge>
-                              ))}
-                            </div>
+                            {subjectTeachers.length === 0 ? (
+                              <span className="text-muted-foreground text-sm">No teachers</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {subjectTeachers.map((t: Teacher) => {
+                                  const classes = getClassesForTeacherSubject(t, subject.id);
+                                  return (
+                                    <div key={t.id} className="flex items-center gap-2 flex-wrap">
+                                      <Badge variant="secondary" className="cursor-pointer" onClick={e => { e.stopPropagation(); navigate(`/teachers/${t.id}`); }}>
+                                        {t.firstname} {t.lastname}
+                                      </Badge>
+                                      {classes.map(c => (
+                                        <Badge key={c.id} variant="outline" className="text-xs">{c.name}</Badge>
+                                      ))}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { Plus, X, PlusCircle, Check, ChevronsUpDown } from 'lucide-react';
 import { teacherApi, subjectApi, classApi, levelApi, templateApi } from '@/services/api';
 import { buildDynamicSchema, getDynamicDefaults } from '@/lib/schema-builder';
-import type { Teacher } from '@/types';
+import type { Teacher, Level } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -102,29 +102,19 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
-      firstname: '',
-      lastname: '',
-      subjectIds: [] as string[],
-      classAssignments: [] as { classId: string; subjectIds: string[] }[],
-      photo: '',
+      firstname: '', lastname: '', subjectIds: [] as string[], classAssignments: [] as { classId: string; subjectIds: string[] }[], photo: '',
       ...getDynamicDefaults(fields)
     }
   });
 
-  const { fields: assignmentFields, append, remove } = useFieldArray({
-    control: form.control,
-    name: 'classAssignments',
-  });
-
+  const { fields: assignmentFields, append, remove } = useFieldArray({ control: form.control, name: 'classAssignments' });
   const selectedSubjectIds: string[] = form.watch('subjectIds') || [];
 
   useEffect(() => {
     if (open) {
       form.reset({
-        firstname: editing?.firstname || '',
-        lastname: editing?.lastname || '',
-        subjectIds: editing?.subjectIds || [],
-        classAssignments: editing?.classAssignments || [],
+        firstname: editing?.firstname || '', lastname: editing?.lastname || '',
+        subjectIds: editing?.subjectIds || [], classAssignments: editing?.classAssignments || [],
         photo: editing?.dynamicFields?.photo || '',
         ...getDynamicDefaults(fields, editing?.dynamicFields)
       });
@@ -136,68 +126,51 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
     onSubmit({ firstname, lastname, subjectIds, classAssignments: classAssignments || [], dynamicFields: { ...rest, photo } });
   };
 
-  // Get already-assigned class IDs to prevent duplicate assignments
   const assignedClassIds = (form.watch('classAssignments') || []).map((a: any) => a.classId);
+
+  // Get allowed subjects for a class based on level's subjectIds
+  const getAllowedSubjectsForClass = (classId: string): string[] => {
+    const cls = classes.find((c: any) => c.id === classId);
+    if (!cls) return selectedSubjectIds;
+    const level = levels.find((l: Level) => l.id === cls.levelId);
+    if (!level || !level.subjectIds || level.subjectIds.length === 0) return selectedSubjectIds;
+    return selectedSubjectIds.filter((sid: string) => level.subjectIds.includes(sid));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editing ? 'Edit Teacher' : 'Add Teacher'}</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>{editing ? 'Edit Teacher' : 'Add Teacher'}</DialogTitle></DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField control={form.control} name="photo" render={({ field }) => (
-              <FormItem>
-                <PhotoUpload value={field.value} onChange={field.onChange} initials={(form.watch('firstname')?.[0] || '') + (form.watch('lastname')?.[0] || '')} />
-              </FormItem>
+              <FormItem><PhotoUpload value={field.value} onChange={field.onChange} initials={(form.watch('firstname')?.[0] || '') + (form.watch('lastname')?.[0] || '')} /></FormItem>
             )} />
             <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="firstname" render={({ field }) => (
-                <FormItem><FormLabel>First Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="lastname" render={({ field }) => (
-                <FormItem><FormLabel>Last Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
+              <FormField control={form.control} name="firstname" render={({ field }) => (<FormItem><FormLabel>First Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="lastname" render={({ field }) => (<FormItem><FormLabel>Last Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
             <FormField control={form.control} name="subjectIds" render={({ field }) => {
-              const selectedSubjectIds = field.value || [];
+              const selected = field.value || [];
               return (
                 <FormItem>
                   <div className="flex items-center justify-between">
                     <FormLabel>Subjects</FormLabel>
-                    <InlineSubjectCreate onCreated={(id) => {
-                      field.onChange([...selectedSubjectIds, id]);
-                    }} />
+                    <InlineSubjectCreate onCreated={(id) => field.onChange([...selected, id])} />
                   </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between",
-                            !selectedSubjectIds.length && "text-muted-foreground"
-                          )}
-                        >
-                          {selectedSubjectIds.length > 0 ? (
+                        <Button variant="outline" role="combobox" className={cn("w-full justify-between", !selected.length && "text-muted-foreground")}>
+                          {selected.length > 0 ? (
                             <div className="flex gap-1 flex-wrap">
-                              {selectedSubjectIds.slice(0, 3).map((id) => {
+                              {selected.slice(0, 3).map(id => {
                                 const subj = subjects.find((s: any) => s.id === id);
-                                return subj ? (
-                                  <Badge variant="secondary" key={id}>
-                                    {subj.name}
-                                  </Badge>
-                                ) : null;
+                                return subj ? <Badge variant="secondary" key={id}>{subj.name}</Badge> : null;
                               })}
-                              {selectedSubjectIds.length > 3 && (
-                                <Badge variant="secondary">+{selectedSubjectIds.length - 3}</Badge>
-                              )}
+                              {selected.length > 3 && <Badge variant="secondary">+{selected.length - 3}</Badge>}
                             </div>
-                          ) : (
-                            "Select subjects"
-                          )}
+                          ) : "Select subjects"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -208,22 +181,11 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
                         <CommandEmpty>No subjects found.</CommandEmpty>
                         <CommandGroup className="max-h-64 overflow-auto">
                           {subjects.map((s: any) => (
-                            <CommandItem
-                              key={s.id}
-                              onSelect={() => {
-                                const current = field.value || [];
-                                const updated = current.includes(s.id)
-                                  ? current.filter((x: string) => x !== s.id)
-                                  : [...current, s.id];
-                                field.onChange(updated);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedSubjectIds.includes(s.id) ? "opacity-100" : "opacity-0"
-                                )}
-                              />
+                            <CommandItem key={s.id} onSelect={() => {
+                              const updated = selected.includes(s.id) ? selected.filter((x: string) => x !== s.id) : [...selected, s.id];
+                              field.onChange(updated);
+                            }}>
+                              <Check className={cn("mr-2 h-4 w-4", selected.includes(s.id) ? "opacity-100" : "opacity-0")} />
                               {s.name} ({s.code})
                             </CommandItem>
                           ))}
@@ -236,47 +198,36 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
               );
             }} />
 
-            {/* Class Assignments with Subjects */}
+            {/* Class Assignments with Subjects - subjects restricted by level */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <FormLabel>Class Assignments</FormLabel>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ classId: '', subjectIds: [] })}
-                  disabled={selectedSubjectIds.length === 0}
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => append({ classId: '', subjectIds: [] })} disabled={selectedSubjectIds.length === 0}>
                   <PlusCircle className="mr-1 h-4 w-4" />Add Class
                 </Button>
               </div>
-              {selectedSubjectIds.length === 0 && (
-                <p className="text-xs text-muted-foreground">Select subjects first to assign classes.</p>
-              )}
+              {selectedSubjectIds.length === 0 && <p className="text-xs text-muted-foreground">Select subjects first to assign classes.</p>}
               {assignmentFields.map((af, index) => {
                 const currentClassId = form.watch(`classAssignments.${index}.classId`);
+                const allowedSubjects = getAllowedSubjectsForClass(currentClassId);
                 return (
                   <div key={af.id} className="rounded-md border p-3 space-y-3 relative">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1 right-1 h-6 w-6"
-                      onClick={() => remove(index)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-
-                    {/* Class select grouped by level */}
+                    <Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => remove(index)}><X className="h-3 w-3" /></Button>
                     <FormField control={form.control} name={`classAssignments.${index}.classId`} render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-xs">Class</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select class" />
-                            </SelectTrigger>
-                          </FormControl>
+                        <Select value={field.value} onValueChange={(v) => {
+                          field.onChange(v);
+                          // Reset subject selection when class changes - remove disallowed subjects
+                          const cls = classes.find((c: any) => c.id === v);
+                          const lvl = cls ? levels.find((l: Level) => l.id === cls.levelId) : null;
+                          if (lvl && lvl.subjectIds) {
+                            const currentSubs = form.getValues(`classAssignments.${index}.subjectIds`) || [];
+                            const filtered = currentSubs.filter((sid: string) => lvl.subjectIds.includes(sid));
+                            form.setValue(`classAssignments.${index}.subjectIds`, filtered);
+                          }
+                        }}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger></FormControl>
                           <SelectContent>
                             {levels.map((l: any) => {
                               const lvlClasses = classes.filter((c: any) => c.levelId === l.id);
@@ -286,11 +237,7 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
                                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{l.name}</div>
                                   {lvlClasses.map((c: any) => {
                                     const alreadyAssigned = assignedClassIds.includes(c.id) && c.id !== currentClassId;
-                                    return (
-                                      <SelectItem key={c.id} value={c.id} disabled={alreadyAssigned}>
-                                        {c.name} {alreadyAssigned ? '(already assigned)' : ''}
-                                      </SelectItem>
-                                    );
+                                    return <SelectItem key={c.id} value={c.id} disabled={alreadyAssigned}>{c.name} {alreadyAssigned ? '(already assigned)' : ''}</SelectItem>;
                                   })}
                                 </div>
                               );
@@ -301,7 +248,7 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
                       </FormItem>
                     )} />
 
-                    {/* Subject checkboxes - only from the teacher's selected subjects */}
+                    {/* Subject checkboxes - disabled if not in level's subjects */}
                     <FormField control={form.control} name={`classAssignments.${index}.subjectIds`} render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-xs">Subjects for this class</FormLabel>
@@ -309,17 +256,20 @@ function TeacherDialog({ open, onOpenChange, editing, fields, subjects, classes,
                           {selectedSubjectIds.map(sid => {
                             const subj = subjects.find((s: any) => s.id === sid);
                             if (!subj) return null;
+                            const isAllowed = allowedSubjects.includes(sid);
                             const checked = (field.value || []).includes(sid);
                             return (
-                              <label key={sid} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                              <label key={sid} className={cn("flex items-center gap-1.5 text-sm", isAllowed ? "cursor-pointer" : "cursor-not-allowed opacity-50")}>
                                 <Checkbox
                                   checked={checked}
+                                  disabled={!isAllowed}
                                   onCheckedChange={c => {
                                     const v = field.value || [];
                                     field.onChange(c ? [...v, sid] : v.filter((x: string) => x !== sid));
                                   }}
                                 />
                                 {subj.name}
+                                {!isAllowed && <span className="text-xs text-destructive">(not in level)</span>}
                               </label>
                             );
                           })}
