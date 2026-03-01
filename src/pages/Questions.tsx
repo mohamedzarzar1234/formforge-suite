@@ -143,7 +143,21 @@ export default function Questions() {
           <h1 className="text-2xl font-bold text-foreground">Questions</h1>
           <p className="text-sm text-muted-foreground">Manage question bank for lessons</p>
         </div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Question</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const cols = [
+              { key: 'text' as const, label: 'Question' },
+              { key: 'lessonId' as const, label: 'Lesson', render: (q: Question) => getLessonName(q.lessonId) },
+              { key: 'type' as const, label: 'Type' },
+              { key: 'difficulty' as const, label: 'Difficulty' },
+              { key: 'options' as const, label: 'Options', render: (q: Question) => q.options.map(o => o.text).join(' | ') },
+              { key: 'correctAnswerId' as const, label: 'Correct Answer', render: (q: Question) => q.options.find(o => o.id === q.correctAnswerId)?.text ?? '' },
+            ];
+            exportToExcel(displayQuestions, cols, 'questions');
+          }}><Download className="h-4 w-4 mr-2" />Export</Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Question</Button>
+        </div>
       </div>
 
       <Card>
