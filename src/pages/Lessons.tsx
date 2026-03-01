@@ -256,6 +256,7 @@ export default function Lessons() {
   const [form, setForm] = useState({ name: '', description: '', unitId: '', order: 1 });
   const [unitForm, setUnitForm] = useState({ name: '', order: 1 });
   const [pendingLessonForm, setPendingLessonForm] = useState<typeof form | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // DnD state
   const [containers, setContainers] = useState<Record<string, string[]>>({});
