@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DatePickerField } from '@/components/DatePickerField';
 
 interface Props {
   fields: FieldDefinition[];
@@ -52,7 +53,7 @@ function DynamicField({ field, control }: { field: FieldDefinition; control: Con
           <FormItem>
             <FormLabel>{field.label}{field.required && ' *'}</FormLabel>
             <FormControl>
-              <Input type="date" {...f} value={f.value ?? ''} />
+              <DatePickerField value={f.value ?? ''} onChange={f.onChange} placeholder={field.placeholder || 'Pick a date'} />
             </FormControl>
             <FormMessage />
           </FormItem>

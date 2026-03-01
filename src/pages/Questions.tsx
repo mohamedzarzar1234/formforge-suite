@@ -12,8 +12,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Download, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { exportToExcel } from '@/lib/excel-utils';
 import type { Question, QuestionOption, QuestionType, DifficultyLevel } from '@/types/exam';
 
 const difficultyColors: Record<DifficultyLevel, string> = {
@@ -141,7 +143,21 @@ export default function Questions() {
           <h1 className="text-2xl font-bold text-foreground">Questions</h1>
           <p className="text-sm text-muted-foreground">Manage question bank for lessons</p>
         </div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Question</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const cols = [
+              { key: 'text' as const, label: 'Question' },
+              { key: 'lessonId' as const, label: 'Lesson', render: (q: Question) => getLessonName(q.lessonId) },
+              { key: 'type' as const, label: 'Type' },
+              { key: 'difficulty' as const, label: 'Difficulty' },
+              { key: 'options' as const, label: 'Options', render: (q: Question) => q.options.map(o => o.text).join(' | ') },
+              { key: 'correctAnswerId' as const, label: 'Correct Answer', render: (q: Question) => q.options.find(o => o.id === q.correctAnswerId)?.text ?? '' },
+            ];
+            exportToExcel(displayQuestions, cols, 'questions');
+          }}><Download className="h-4 w-4 mr-2" />Export</Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Question</Button>
+        </div>
       </div>
 
       <Card>
@@ -225,6 +241,36 @@ export default function Questions() {
           )}
         </CardContent>
       </Card>
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        expectedColumns={['Question', 'Lesson', 'Type (true_false/multiple_choice)', 'Difficulty (easy/medium/hard)', 'Options (pipe separated)', 'Correct Answer']}
+        onImport={(rows) => {
+          let count = 0;
+          rows.forEach(row => {
+            const text = row['Question'] || row['question'] || '';
+            if (!text) return;
+            const lessonName = row['Lesson'] || row['lesson'] || '';
+            const lesson = allLessons.find(l => l.name.toLowerCase() === lessonName.toLowerCase());
+            if (!lesson) return;
+            const type = (row['Type'] || row['type'] || 'multiple_choice') as QuestionType;
+            const difficulty = (row['Difficulty'] || row['difficulty'] || 'easy') as DifficultyLevel;
+            const optTexts = (row['Options'] || row['options'] || '').split('|').map((s: string) => s.trim()).filter(Boolean);
+            const correctText = row['Correct Answer'] || row['correct answer'] || '';
+            const options: QuestionOption[] = type === 'true_false'
+              ? [{ id: `tf-t-${Date.now()}-${count}`, text: 'True' }, { id: `tf-f-${Date.now()}-${count}`, text: 'False' }]
+              : optTexts.map((t: string, i: number) => ({ id: `imp-${Date.now()}-${count}-${i}`, text: t }));
+            const correctOpt = options.find(o => o.text.toLowerCase() === correctText.toLowerCase());
+            createMut.mutate({
+              text, lessonId: lesson.id, type, difficulty, options,
+              correctAnswerId: correctOpt?.id || options[0]?.id || '',
+            });
+            count++;
+          });
+          toast({ title: `Imported ${count} questions` });
+        }}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

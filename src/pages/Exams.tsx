@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { examApi, lessonApi, questionApi } from '@/services/exam-api';
+import { examApi, lessonApi, questionApi, unitApi } from '@/services/exam-api';
 import { levelApi, subjectApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,12 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Play, Search, Camera } from 'lucide-react';
+import { Plus, Trash2, Play, Search, Camera, Download, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { PrintExamQuestions } from '@/components/PrintExamQuestions';
 import { PrintAnswerSheet } from '@/components/PrintAnswerSheet';
-import type { ExamConfig, Question, Exam } from '@/types/exam';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { exportToExcel } from '@/lib/excel-utils';
+import type { ExamConfig, Question, Exam, Unit } from '@/types/exam';
 
 function PrintQuestionsButton({ exam }: { exam: Exam }) {
   const { data: questionsRes } = useQuery({
@@ -50,13 +52,17 @@ export default function Exams() {
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
 
   // Queries
+  const [importOpen, setImportOpen] = useState(false);
+
   const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 100 }) });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 100 }) });
   const { data: allLessonsRes } = useQuery({ queryKey: ['lessons-flat'], queryFn: () => lessonApi.getAllFlat() });
+  const { data: allUnitsRes } = useQuery({ queryKey: ['units-all'], queryFn: () => unitApi.getAll({}) });
 
   const levels = levelsRes?.data ?? [];
   const allSubjects = subjectsRes?.data ?? [];
   const allLessonsFlat = allLessonsRes?.data ?? [];
+  const allUnitsFlat = allUnitsRes?.data ?? [];
 
   // Filter subjects that have lessons in the selected level
   const filteredSubjects = useMemo(() => {
@@ -152,7 +158,10 @@ export default function Exams() {
           <h1 className="text-2xl font-bold text-foreground">Exams</h1>
           <p className="text-sm text-muted-foreground">Generate and manage exams</p>
         </div>
-        <Button onClick={openGenerate}><Plus className="h-4 w-4 mr-2" /> Generate Exam</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
+          <Button onClick={openGenerate}><Plus className="h-4 w-4 mr-2" /> Generate Exam</Button>
+        </div>
       </div>
 
       <Card>
@@ -194,6 +203,18 @@ export default function Exams() {
                   <TableCell className="text-right space-x-1">
                     <PrintQuestionsButton exam={exam} />
                     <PrintAnswerSheet />
+                    <Button variant="ghost" size="icon" title="Export to Excel" onClick={async () => {
+                      const res = await examApi.getQuestionsForExam(exam.id);
+                      const qs = res.data;
+                      const cols = [
+                        { key: 'text' as const, label: 'Question' },
+                        { key: 'type' as const, label: 'Type' },
+                        { key: 'difficulty' as const, label: 'Difficulty' },
+                        { key: 'options' as const, label: 'Options', render: (q: Question) => q.options.map(o => o.text).join(' | ') },
+                        { key: 'correctAnswerId' as const, label: 'Correct Answer', render: (q: Question) => q.options.find(o => o.id === q.correctAnswerId)?.text ?? '' },
+                      ];
+                      exportToExcel(qs, cols, `exam-${exam.name}`);
+                    }}><Download className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/scan`)} title="تصحيح بالكاميرا"><Camera className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/take`)}><Play className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(exam.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -239,17 +260,75 @@ export default function Exams() {
 
             <div>
               <Label>Select Lessons *</Label>
-              <div className="border rounded-md p-3 mt-1 max-h-40 overflow-y-auto space-y-2">
+              <div className="border rounded-md p-3 mt-1 max-h-48 overflow-y-auto">
                 {!selectedSubjectId ? (
                   <p className="text-sm text-muted-foreground">Select level and subject first</p>
                 ) : filteredLessons.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No lessons available for this selection</p>
-                ) : filteredLessons.map(l => (
-                  <div key={l.id} className="flex items-center gap-2">
-                    <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
-                    <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer text-sm">{l.name}</Label>
-                  </div>
-                ))}
+                ) : (() => {
+                  // Group lessons by unit
+                  const unitsForScope = allUnitsFlat.filter(u => u.subjectId === selectedSubjectId && u.levelId === selectedLevelId).sort((a, b) => a.order - b.order);
+                  const ungrouped = filteredLessons.filter(l => !l.unitId || !unitsForScope.find(u => u.id === l.unitId));
+                  
+                  const toggleUnit = (unitLessons: typeof filteredLessons) => {
+                    const ids = unitLessons.map(l => l.id);
+                    const allSelected = ids.every(id => selectedLessons.includes(id));
+                    if (allSelected) {
+                      setSelectedLessons(prev => prev.filter(id => !ids.includes(id)));
+                    } else {
+                      setSelectedLessons(prev => [...new Set([...prev, ...ids])]);
+                    }
+                    setSelectedQuestions([]);
+                  };
+
+                  return (
+                    <Table>
+                      <TableBody>
+                        {unitsForScope.map(unit => {
+                          const unitLessons = filteredLessons.filter(l => l.unitId === unit.id).sort((a, b) => a.order - b.order);
+                          if (unitLessons.length === 0) return null;
+                          const allSel = unitLessons.every(l => selectedLessons.includes(l.id));
+                          const someSel = unitLessons.some(l => selectedLessons.includes(l.id)) && !allSel;
+                          return (
+                            <React.Fragment key={unit.id}>
+                              <TableRow className="bg-muted/50 font-medium">
+                                <TableCell className="py-1.5 w-8">
+                                  <Checkbox checked={allSel ? true : someSel ? 'indeterminate' : false} onCheckedChange={() => toggleUnit(unitLessons)} />
+                                </TableCell>
+                                <TableCell className="py-1.5 font-semibold text-sm">
+                                  {unit.name}
+                                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                    ({unitLessons.filter(l => selectedLessons.includes(l.id)).length}/{unitLessons.length})
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                              {unitLessons.map(l => (
+                                <TableRow key={l.id}>
+                                  <TableCell className="py-1 pl-6 w-8">
+                                    <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
+                                  </TableCell>
+                                  <TableCell className="py-1 pl-8 text-sm">
+                                    <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer">{l.name}</Label>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                        {ungrouped.map(l => (
+                          <TableRow key={l.id}>
+                            <TableCell className="py-1 w-8">
+                              <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
+                            </TableCell>
+                            <TableCell className="py-1 text-sm">
+                              <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer">{l.name}</Label>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
               </div>
             </div>
 
@@ -300,6 +379,56 @@ export default function Exams() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        expectedColumns={['Exam Name', 'Question', 'Type', 'Difficulty', 'Options (pipe separated)', 'Correct Answer']}
+        onImport={(rows) => {
+          // Group rows by exam name
+          const examGroups: Record<string, typeof rows> = {};
+          rows.forEach(row => {
+            const examName = row['Exam Name'] || row['exam name'] || 'Imported Exam';
+            if (!examGroups[examName]) examGroups[examName] = [];
+            examGroups[examName].push(row);
+          });
+
+          Object.entries(examGroups).forEach(([name, examRows]) => {
+            // Create questions first, then create exam
+            const questionIds: string[] = [];
+            examRows.forEach(row => {
+              const text = row['Question'] || row['question'];
+              if (!text) return;
+              const type = (row['Type'] || 'multiple_choice') as any;
+              const difficulty = (row['Difficulty'] || 'easy') as any;
+              const optTexts = (row['Options'] || '').split('|').map((s: string) => s.trim()).filter(Boolean);
+              const correctText = row['Correct Answer'] || '';
+              const options = type === 'true_false'
+                ? [{ id: `tf-t-${Date.now()}-${questionIds.length}`, text: 'True' }, { id: `tf-f-${Date.now()}-${questionIds.length}`, text: 'False' }]
+                : optTexts.map((t: string, i: number) => ({ id: `imp-${Date.now()}-${questionIds.length}-${i}`, text: t }));
+              const correctOpt = options.find(o => o.text.toLowerCase() === correctText.toLowerCase());
+              // For import, we just generate the exam with manual mode
+              questionIds.push(`imported-${Date.now()}-${questionIds.length}`);
+            });
+
+            // Generate exam with first available level/subject
+            if (selectedLevelId && selectedSubjectId) {
+              const config: ExamConfig = {
+                name,
+                levelId: selectedLevelId,
+                subjectId: selectedSubjectId,
+                lessonIds: selectedLessons.length > 0 ? selectedLessons : [],
+                maxScore: 100,
+                mode: 'auto',
+                easyCount: examRows.length,
+                mediumCount: 0,
+                hardCount: 0,
+              };
+              generateMut.mutate(config);
+            }
+          });
+          toast({ title: `Importing exams from file` });
+        }}
+      />
     </div>
   );
 }

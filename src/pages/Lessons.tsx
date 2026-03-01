@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, BookOpen, GripVertical, ArrowLeft, FolderPlus, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, BookOpen, GripVertical, ArrowLeft, FolderPlus, ChevronRight, Download, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { InlineEdit } from '@/components/InlineEdit';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { exportToExcel } from '@/lib/excel-utils';
 import type { Lesson, Unit } from '@/types/exam';
 import type { Level, Subject } from '@/types';
 import {
@@ -254,6 +256,7 @@ export default function Lessons() {
   const [form, setForm] = useState({ name: '', description: '', unitId: '', order: 1 });
   const [unitForm, setUnitForm] = useState({ name: '', order: 1 });
   const [pendingLessonForm, setPendingLessonForm] = useState<typeof form | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // DnD state
   const [containers, setContainers] = useState<Record<string, string[]>>({});
@@ -553,6 +556,16 @@ export default function Lessons() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const cols = [
+              { key: 'name' as const, label: 'Name' },
+              { key: 'description' as const, label: 'Description' },
+              { key: 'unitId' as const, label: 'Unit', render: (l: Lesson) => allUnits.find(u => u.id === l.unitId)?.name ?? '' },
+              { key: 'order' as const, label: 'Order' },
+            ];
+            exportToExcel(allLessons, cols, `lessons-${selectedLevel.name}-${selectedSubject.name}`);
+          }}><Download className="h-4 w-4 mr-2" />Export</Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
           <Button variant="outline" onClick={openCreateUnit}><FolderPlus className="h-4 w-4 mr-2" /> Add Unit</Button>
           <Button onClick={openCreateLesson}><Plus className="h-4 w-4 mr-2" /> Add Lesson</Button>
         </div>
@@ -664,6 +677,33 @@ export default function Lessons() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        expectedColumns={['Name', 'Description', 'Unit', 'Order']}
+        onImport={(rows) => {
+          let count = 0;
+          rows.forEach(row => {
+            const name = row['Name'] || row['name'];
+            if (!name) return;
+            const unitName = row['Unit'] || row['unit'] || '';
+            const matchedUnit = allUnits.find(u => u.name.toLowerCase() === unitName.toLowerCase());
+            const order = parseInt(row['Order'] || row['order'] || '0') || (allLessons.length + count + 1);
+            createLessonMut.mutate({
+              name,
+              description: row['Description'] || row['description'] || '',
+              subjectId: selectedSubject!.id,
+              levelId: selectedLevel!.id,
+              unitId: matchedUnit?.id || '',
+              order,
+            });
+            count++;
+          });
+          toast({ title: `Imported ${count} lessons` });
+        }}
+      />
 
       {/* Unit Dialog */}
       <Dialog open={unitDialogOpen} onOpenChange={(open) => {
