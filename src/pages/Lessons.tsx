@@ -556,6 +556,16 @@ export default function Lessons() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const cols = [
+              { key: 'name' as const, label: 'Name' },
+              { key: 'description' as const, label: 'Description' },
+              { key: 'unitId' as const, label: 'Unit', render: (l: Lesson) => allUnits.find(u => u.id === l.unitId)?.name ?? '' },
+              { key: 'order' as const, label: 'Order' },
+            ];
+            exportToExcel(allLessons, cols, `lessons-${selectedLevel.name}-${selectedSubject.name}`);
+          }}><Download className="h-4 w-4 mr-2" />Export</Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
           <Button variant="outline" onClick={openCreateUnit}><FolderPlus className="h-4 w-4 mr-2" /> Add Unit</Button>
           <Button onClick={openCreateLesson}><Plus className="h-4 w-4 mr-2" /> Add Lesson</Button>
         </div>
