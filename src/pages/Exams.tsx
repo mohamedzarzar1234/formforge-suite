@@ -260,17 +260,75 @@ export default function Exams() {
 
             <div>
               <Label>Select Lessons *</Label>
-              <div className="border rounded-md p-3 mt-1 max-h-40 overflow-y-auto space-y-2">
+              <div className="border rounded-md p-3 mt-1 max-h-48 overflow-y-auto">
                 {!selectedSubjectId ? (
                   <p className="text-sm text-muted-foreground">Select level and subject first</p>
                 ) : filteredLessons.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No lessons available for this selection</p>
-                ) : filteredLessons.map(l => (
-                  <div key={l.id} className="flex items-center gap-2">
-                    <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
-                    <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer text-sm">{l.name}</Label>
-                  </div>
-                ))}
+                ) : (() => {
+                  // Group lessons by unit
+                  const unitsForScope = allUnitsFlat.filter(u => u.subjectId === selectedSubjectId && u.levelId === selectedLevelId).sort((a, b) => a.order - b.order);
+                  const ungrouped = filteredLessons.filter(l => !l.unitId || !unitsForScope.find(u => u.id === l.unitId));
+                  
+                  const toggleUnit = (unitLessons: typeof filteredLessons) => {
+                    const ids = unitLessons.map(l => l.id);
+                    const allSelected = ids.every(id => selectedLessons.includes(id));
+                    if (allSelected) {
+                      setSelectedLessons(prev => prev.filter(id => !ids.includes(id)));
+                    } else {
+                      setSelectedLessons(prev => [...new Set([...prev, ...ids])]);
+                    }
+                    setSelectedQuestions([]);
+                  };
+
+                  return (
+                    <Table>
+                      <TableBody>
+                        {unitsForScope.map(unit => {
+                          const unitLessons = filteredLessons.filter(l => l.unitId === unit.id).sort((a, b) => a.order - b.order);
+                          if (unitLessons.length === 0) return null;
+                          const allSel = unitLessons.every(l => selectedLessons.includes(l.id));
+                          const someSel = unitLessons.some(l => selectedLessons.includes(l.id)) && !allSel;
+                          return (
+                            <React.Fragment key={unit.id}>
+                              <TableRow className="bg-muted/50 font-medium">
+                                <TableCell className="py-1.5 w-8">
+                                  <Checkbox checked={allSel ? true : someSel ? 'indeterminate' : false} onCheckedChange={() => toggleUnit(unitLessons)} />
+                                </TableCell>
+                                <TableCell className="py-1.5 font-semibold text-sm">
+                                  {unit.name}
+                                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                    ({unitLessons.filter(l => selectedLessons.includes(l.id)).length}/{unitLessons.length})
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                              {unitLessons.map(l => (
+                                <TableRow key={l.id}>
+                                  <TableCell className="py-1 pl-6 w-8">
+                                    <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
+                                  </TableCell>
+                                  <TableCell className="py-1 pl-8 text-sm">
+                                    <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer">{l.name}</Label>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                        {ungrouped.map(l => (
+                          <TableRow key={l.id}>
+                            <TableCell className="py-1 w-8">
+                              <Checkbox checked={selectedLessons.includes(l.id)} onCheckedChange={() => toggleLesson(l.id)} id={`lesson-${l.id}`} />
+                            </TableCell>
+                            <TableCell className="py-1 text-sm">
+                              <Label htmlFor={`lesson-${l.id}`} className="cursor-pointer">{l.name}</Label>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
               </div>
             </div>
 
