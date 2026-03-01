@@ -379,6 +379,56 @@ export default function Exams() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        expectedColumns={['Exam Name', 'Question', 'Type', 'Difficulty', 'Options (pipe separated)', 'Correct Answer']}
+        onImport={(rows) => {
+          // Group rows by exam name
+          const examGroups: Record<string, typeof rows> = {};
+          rows.forEach(row => {
+            const examName = row['Exam Name'] || row['exam name'] || 'Imported Exam';
+            if (!examGroups[examName]) examGroups[examName] = [];
+            examGroups[examName].push(row);
+          });
+
+          Object.entries(examGroups).forEach(([name, examRows]) => {
+            // Create questions first, then create exam
+            const questionIds: string[] = [];
+            examRows.forEach(row => {
+              const text = row['Question'] || row['question'];
+              if (!text) return;
+              const type = (row['Type'] || 'multiple_choice') as any;
+              const difficulty = (row['Difficulty'] || 'easy') as any;
+              const optTexts = (row['Options'] || '').split('|').map((s: string) => s.trim()).filter(Boolean);
+              const correctText = row['Correct Answer'] || '';
+              const options = type === 'true_false'
+                ? [{ id: `tf-t-${Date.now()}-${questionIds.length}`, text: 'True' }, { id: `tf-f-${Date.now()}-${questionIds.length}`, text: 'False' }]
+                : optTexts.map((t: string, i: number) => ({ id: `imp-${Date.now()}-${questionIds.length}-${i}`, text: t }));
+              const correctOpt = options.find(o => o.text.toLowerCase() === correctText.toLowerCase());
+              // For import, we just generate the exam with manual mode
+              questionIds.push(`imported-${Date.now()}-${questionIds.length}`);
+            });
+
+            // Generate exam with first available level/subject
+            if (selectedLevelId && selectedSubjectId) {
+              const config: ExamConfig = {
+                name,
+                levelId: selectedLevelId,
+                subjectId: selectedSubjectId,
+                lessonIds: selectedLessons.length > 0 ? selectedLessons : [],
+                maxScore: 100,
+                mode: 'auto',
+                easyCount: examRows.length,
+                mediumCount: 0,
+                hardCount: 0,
+              };
+              generateMut.mutate(config);
+            }
+          });
+          toast({ title: `Importing exams from file` });
+        }}
+      />
     </div>
   );
 }
