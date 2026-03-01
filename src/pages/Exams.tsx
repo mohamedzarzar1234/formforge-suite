@@ -203,6 +203,18 @@ export default function Exams() {
                   <TableCell className="text-right space-x-1">
                     <PrintQuestionsButton exam={exam} />
                     <PrintAnswerSheet />
+                    <Button variant="ghost" size="icon" title="Export to Excel" onClick={async () => {
+                      const res = await examApi.getQuestionsForExam(exam.id);
+                      const qs = res.data;
+                      const cols = [
+                        { key: 'text' as const, label: 'Question' },
+                        { key: 'type' as const, label: 'Type' },
+                        { key: 'difficulty' as const, label: 'Difficulty' },
+                        { key: 'options' as const, label: 'Options', render: (q: Question) => q.options.map(o => o.text).join(' | ') },
+                        { key: 'correctAnswerId' as const, label: 'Correct Answer', render: (q: Question) => q.options.find(o => o.id === q.correctAnswerId)?.text ?? '' },
+                      ];
+                      exportToExcel(qs, cols, `exam-${exam.name}`);
+                    }}><Download className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/scan`)} title="تصحيح بالكاميرا"><Camera className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/take`)}><Play className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(exam.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
