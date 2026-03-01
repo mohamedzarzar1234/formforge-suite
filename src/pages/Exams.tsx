@@ -158,7 +158,10 @@ export default function Exams() {
           <h1 className="text-2xl font-bold text-foreground">Exams</h1>
           <p className="text-sm text-muted-foreground">Generate and manage exams</p>
         </div>
-        <Button onClick={openGenerate}><Plus className="h-4 w-4 mr-2" /> Generate Exam</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
+          <Button onClick={openGenerate}><Plus className="h-4 w-4 mr-2" /> Generate Exam</Button>
+        </div>
       </div>
 
       <Card>
