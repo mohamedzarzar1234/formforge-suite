@@ -62,6 +62,7 @@ export default function Exams() {
   const levels = levelsRes?.data ?? [];
   const allSubjects = subjectsRes?.data ?? [];
   const allLessonsFlat = allLessonsRes?.data ?? [];
+  const allUnitsFlat = allUnitsRes?.data ?? [];
 
   // Filter subjects that have lessons in the selected level
   const filteredSubjects = useMemo(() => {
