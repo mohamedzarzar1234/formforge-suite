@@ -678,6 +678,33 @@ export default function Lessons() {
         </DialogContent>
       </Dialog>
 
+      {/* Excel Import Dialog */}
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        expectedColumns={['Name', 'Description', 'Unit', 'Order']}
+        onImport={(rows) => {
+          let count = 0;
+          rows.forEach(row => {
+            const name = row['Name'] || row['name'];
+            if (!name) return;
+            const unitName = row['Unit'] || row['unit'] || '';
+            const matchedUnit = allUnits.find(u => u.name.toLowerCase() === unitName.toLowerCase());
+            const order = parseInt(row['Order'] || row['order'] || '0') || (allLessons.length + count + 1);
+            createLessonMut.mutate({
+              name,
+              description: row['Description'] || row['description'] || '',
+              subjectId: selectedSubject!.id,
+              levelId: selectedLevel!.id,
+              unitId: matchedUnit?.id || '',
+              order,
+            });
+            count++;
+          });
+          toast({ title: `Imported ${count} lessons` });
+        }}
+      />
+
       {/* Unit Dialog */}
       <Dialog open={unitDialogOpen} onOpenChange={(open) => {
         setUnitDialogOpen(open);

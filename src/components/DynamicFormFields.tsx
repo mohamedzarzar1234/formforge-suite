@@ -53,7 +53,7 @@ function DynamicField({ field, control }: { field: FieldDefinition; control: Con
           <FormItem>
             <FormLabel>{field.label}{field.required && ' *'}</FormLabel>
             <FormControl>
-              <Input type="date" {...f} value={f.value ?? ''} />
+              <DatePickerField value={f.value ?? ''} onChange={f.onChange} placeholder={field.placeholder || 'Pick a date'} />
             </FormControl>
             <FormMessage />
           </FormItem>

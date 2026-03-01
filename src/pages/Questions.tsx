@@ -242,6 +242,36 @@ export default function Questions() {
         </CardContent>
       </Card>
 
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        expectedColumns={['Question', 'Lesson', 'Type (true_false/multiple_choice)', 'Difficulty (easy/medium/hard)', 'Options (pipe separated)', 'Correct Answer']}
+        onImport={(rows) => {
+          let count = 0;
+          rows.forEach(row => {
+            const text = row['Question'] || row['question'] || '';
+            if (!text) return;
+            const lessonName = row['Lesson'] || row['lesson'] || '';
+            const lesson = allLessons.find(l => l.name.toLowerCase() === lessonName.toLowerCase());
+            if (!lesson) return;
+            const type = (row['Type'] || row['type'] || 'multiple_choice') as QuestionType;
+            const difficulty = (row['Difficulty'] || row['difficulty'] || 'easy') as DifficultyLevel;
+            const optTexts = (row['Options'] || row['options'] || '').split('|').map((s: string) => s.trim()).filter(Boolean);
+            const correctText = row['Correct Answer'] || row['correct answer'] || '';
+            const options: QuestionOption[] = type === 'true_false'
+              ? [{ id: `tf-t-${Date.now()}-${count}`, text: 'True' }, { id: `tf-f-${Date.now()}-${count}`, text: 'False' }]
+              : optTexts.map((t: string, i: number) => ({ id: `imp-${Date.now()}-${count}-${i}`, text: t }));
+            const correctOpt = options.find(o => o.text.toLowerCase() === correctText.toLowerCase());
+            createMut.mutate({
+              text, lessonId: lesson.id, type, difficulty, options,
+              correctAnswerId: correctOpt?.id || options[0]?.id || '',
+            });
+            count++;
+          });
+          toast({ title: `Imported ${count} questions` });
+        }}
+      />
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
