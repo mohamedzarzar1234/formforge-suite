@@ -39,6 +39,7 @@ export default function Questions() {
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Question | null>(null);
 
   const [form, setForm] = useState<{
