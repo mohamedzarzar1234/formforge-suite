@@ -18,7 +18,7 @@ import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
 import { ViewToggle } from '@/components/ViewToggle';
 import { toast } from 'sonner';
 import { teacherAttendanceApi, getSessionOptions } from '@/services/attendance-api';
-import { teacherApi, classApi, levelApi } from '@/services/api';
+import { teacherApi, classApi, levelApi, subjectApi } from '@/services/api';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 import { exportToExcel } from '@/lib/excel-utils';
 import { AttendanceQRScanner } from '@/components/AttendanceQRScanner';
@@ -55,9 +55,11 @@ export default function TeacherAttendance() {
   const { data: teachersRes } = useQuery({ queryKey: ['teachers-all'], queryFn: () => teacherApi.getAll({ page: 1, limit: 1000 }) });
   const { data: classesRes } = useQuery({ queryKey: ['classes-all'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
   const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
   const teachers = teachersRes?.data || [];
   const classes = classesRes?.data || [];
   const levels = levelsRes?.data || [];
+  const subjects = subjectsRes?.data || [];
 
   const { data: absencesRes, isLoading: absLoading } = useQuery({ queryKey: ['teacher-absences', filter], queryFn: () => teacherAttendanceApi.getAbsences(filter) });
   const { data: latesRes, isLoading: lateLoading } = useQuery({ queryKey: ['teacher-lates', filter], queryFn: () => teacherAttendanceApi.getLates(filter) });
@@ -72,6 +74,7 @@ export default function TeacherAttendance() {
     if (filter.entityId) items = items.filter(i => i.teacherId === filter.entityId);
     if (filter.classId) { const tIds = teachers.filter(t => t.classAssignments.some(ca => ca.classId === filter.classId)).map(t => t.id); items = items.filter(i => tIds.includes(i.teacherId)); }
     if (filter.levelId) { const cIds = classes.filter(c => c.levelId === filter.levelId).map(c => c.id); const tIds = teachers.filter(t => t.classAssignments.some(ca => cIds.includes(ca.classId))).map(t => t.id); items = items.filter(i => tIds.includes(i.teacherId)); }
+    if ((filter as any).subjectId) { const tIds = teachers.filter(t => t.subjectIds.includes((filter as any).subjectId)).map(t => t.id); items = items.filter(i => tIds.includes(i.teacherId)); }
     return items;
   }, [absences, filter, teachers, classes]);
 
@@ -80,6 +83,7 @@ export default function TeacherAttendance() {
     if (filter.entityId) items = items.filter(i => i.teacherId === filter.entityId);
     if (filter.classId) { const tIds = teachers.filter(t => t.classAssignments.some(ca => ca.classId === filter.classId)).map(t => t.id); items = items.filter(i => tIds.includes(i.teacherId)); }
     if (filter.levelId) { const cIds = classes.filter(c => c.levelId === filter.levelId).map(c => c.id); const tIds = teachers.filter(t => t.classAssignments.some(ca => cIds.includes(ca.classId))).map(t => t.id); items = items.filter(i => tIds.includes(i.teacherId)); }
+    if ((filter as any).subjectId) { const tIds = teachers.filter(t => t.subjectIds.includes((filter as any).subjectId)).map(t => t.id); items = items.filter(i => tIds.includes(i.teacherId)); }
     return items;
   }, [lates, filter, teachers, classes]);
 
@@ -190,6 +194,13 @@ export default function TeacherAttendance() {
                 <SelectContent><SelectItem value="all">All Levels</SelectItem>{levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Subject</Label>
+              <Select value={(filter as any).subjectId || 'all'} onValueChange={v => setFilter(f => ({ ...f, subjectId: v === 'all' ? undefined : v } as any))}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Subjects</SelectItem>{subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear</Button>
             <div className="ml-auto">
               {tab === 'absences' && <ViewToggle view={absView} onViewChange={setAbsView} />}
@@ -209,9 +220,7 @@ export default function TeacherAttendance() {
         <TabsContent value="absences" className="space-y-4">
           <div className="flex gap-2 flex-wrap items-center">
             <Button size="sm" onClick={() => { resetAbsForm(); setAbsDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Absence</Button>
-            <AttendanceQRScanner entityType="teachers" mode="single" onScanned={handleScanSingleAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Scan Add</Button>} />
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
-            <AttendanceQRScanner entityType="teachers" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, teacherName: getTeacherName(a.teacherId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'teacherName', label: 'Teacher' }, { key: 'session', label: 'Session' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'teacher-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
           </div>

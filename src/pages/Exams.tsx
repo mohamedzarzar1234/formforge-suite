@@ -12,10 +12,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Play, Search } from 'lucide-react';
+import { Plus, Trash2, Play, Search, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import type { ExamConfig, Question } from '@/types/exam';
+import { PrintExamQuestions } from '@/components/PrintExamQuestions';
+import { PrintAnswerSheet } from '@/components/PrintAnswerSheet';
+import type { ExamConfig, Question, Exam } from '@/types/exam';
+
+function PrintQuestionsButton({ exam }: { exam: Exam }) {
+  const { data: questionsRes } = useQuery({
+    queryKey: ['exam-questions-print', exam.id],
+    queryFn: () => examApi.getQuestionsForExam(exam.id),
+  });
+  const questions = questionsRes?.data ?? [];
+  if (questions.length === 0) return null;
+  return <PrintExamQuestions exam={exam} questions={questions} />;
+}
 
 export default function Exams() {
   const { toast } = useToast();
@@ -180,6 +192,9 @@ export default function Exams() {
                   <TableCell>{exam.maxScore}</TableCell>
                   <TableCell><Badge variant={exam.status === 'published' ? 'default' : 'outline'}>{exam.status}</Badge></TableCell>
                   <TableCell className="text-right space-x-1">
+                    <PrintQuestionsButton exam={exam} />
+                    <PrintAnswerSheet />
+                    <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/scan`)} title="تصحيح بالكاميرا"><Camera className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => navigate(`/exams/${exam.id}/take`)}><Play className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(exam.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>

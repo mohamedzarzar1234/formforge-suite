@@ -228,9 +228,7 @@ export default function StudentAttendance() {
         <TabsContent value="absences" className="space-y-4">
           <div className="flex gap-2 flex-wrap items-center">
             <Button size="sm" onClick={() => { resetAbsForm(); setAbsDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Absence</Button>
-            <AttendanceQRScanner entityType="students" mode="single" onScanned={handleScanSingleAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Scan Add</Button>} />
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ studentId: '', date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
-            <AttendanceQRScanner entityType="students" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, studentName: getStudentName(a.studentId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'studentName', label: 'Student' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'student-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
           </div>

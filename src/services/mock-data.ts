@@ -75,11 +75,11 @@ export const initialParents: Parent[] = [
 ];
 
 export const initialStudents: Student[] = [
-  { id: 'stu-1', firstname: 'John', lastname: 'Doe', parentIds: ['par-1'], defaultParentId: 'par-1', classId: 'cls-1', levelId: 'lvl-1', dynamicFields: { date_of_birth: '2015-05-15', gender: 'male', email: 'john.doe@school.com', blood_group: 'A+' }, createdAt: '2024-01-15T10:00:00Z' },
-  { id: 'stu-2', firstname: 'Jane', lastname: 'Smith', parentIds: ['par-2'], defaultParentId: 'par-2', classId: 'cls-2', levelId: 'lvl-1', dynamicFields: { date_of_birth: '2015-08-22', gender: 'female', blood_group: 'B+' }, createdAt: '2024-01-15T10:00:00Z' },
-  { id: 'stu-3', firstname: 'Mike', lastname: 'Johnson', parentIds: ['par-3'], defaultParentId: 'par-3', classId: 'cls-3', levelId: 'lvl-2', dynamicFields: { date_of_birth: '2012-03-10', gender: 'male', blood_group: 'O+' }, createdAt: '2024-02-01T10:00:00Z' },
-  { id: 'stu-4', firstname: 'Emily', lastname: 'Williams', parentIds: ['par-4'], defaultParentId: 'par-4', classId: 'cls-4', levelId: 'lvl-2', dynamicFields: { date_of_birth: '2012-11-05', gender: 'female', address: '789 Pine Road' }, createdAt: '2024-02-01T10:00:00Z' },
-  { id: 'stu-5', firstname: 'David', lastname: 'Brown', parentIds: ['par-1'], defaultParentId: 'par-1', classId: 'cls-5', levelId: 'lvl-3', dynamicFields: { date_of_birth: '2009-07-20', gender: 'male', phone: '+1 555 9999' }, createdAt: '2024-02-15T10:00:00Z' },
+  { id: 'stu-1', firstname: 'John', lastname: 'Doe', parentIds: ['par-1'], defaultParentId: 'par-1', parentRelations: { 'par-1': 'Father' }, classId: 'cls-1', levelId: 'lvl-1', dynamicFields: { date_of_birth: '2015-05-15', gender: 'male', email: 'john.doe@school.com', blood_group: 'A+' }, createdAt: '2024-01-15T10:00:00Z' },
+  { id: 'stu-2', firstname: 'Jane', lastname: 'Smith', parentIds: ['par-2'], defaultParentId: 'par-2', parentRelations: { 'par-2': 'Mother' }, classId: 'cls-2', levelId: 'lvl-1', dynamicFields: { date_of_birth: '2015-08-22', gender: 'female', blood_group: 'B+' }, createdAt: '2024-01-15T10:00:00Z' },
+  { id: 'stu-3', firstname: 'Mike', lastname: 'Johnson', parentIds: ['par-3'], defaultParentId: 'par-3', parentRelations: { 'par-3': 'Father' }, classId: 'cls-3', levelId: 'lvl-2', dynamicFields: { date_of_birth: '2012-03-10', gender: 'male', blood_group: 'O+' }, createdAt: '2024-02-01T10:00:00Z' },
+  { id: 'stu-4', firstname: 'Emily', lastname: 'Williams', parentIds: ['par-4'], defaultParentId: 'par-4', parentRelations: { 'par-4': 'Mother' }, classId: 'cls-4', levelId: 'lvl-2', dynamicFields: { date_of_birth: '2012-11-05', gender: 'female', address: '789 Pine Road' }, createdAt: '2024-02-01T10:00:00Z' },
+  { id: 'stu-5', firstname: 'David', lastname: 'Brown', parentIds: ['par-1'], defaultParentId: 'par-1', parentRelations: { 'par-1': 'Father' }, classId: 'cls-5', levelId: 'lvl-3', dynamicFields: { date_of_birth: '2009-07-20', gender: 'male', phone: '+1 555 9999' }, createdAt: '2024-02-15T10:00:00Z' },
 ];
 
 export const initialTeachers: Teacher[] = [

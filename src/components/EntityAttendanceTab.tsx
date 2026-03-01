@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,10 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
+  // Date filters
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
   const [formDate, setFormDate] = useState(today());
   const [formJustified, setFormJustified] = useState(false);
   const [formReason, setFormReason] = useState('');
@@ -61,8 +65,16 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
   };
 
   const isAbsences = recordType === 'absences';
-  const items: any[] = isAbsences ? (absQuery.data?.data || []) : (lateQuery.data?.data || []);
+  const rawItems: any[] = isAbsences ? (absQuery.data?.data || []) : (lateQuery.data?.data || []);
   const isLoading = isAbsences ? absQuery.isLoading : lateQuery.isLoading;
+
+  // Apply date filters
+  const items = useMemo(() => {
+    let filtered = rawItems;
+    if (dateFrom) filtered = filtered.filter(i => i.date >= dateFrom);
+    if (dateTo) filtered = filtered.filter(i => i.date <= dateTo);
+    return filtered;
+  }, [rawItems, dateFrom, dateTo]);
 
   const createMut = useMutation({
     mutationFn: (data: any) => {
@@ -123,11 +135,26 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-muted-foreground">{items.length} {recordType} for {entityName}</p>
-        <div className="flex items-center gap-2">
-          <ViewToggle view={viewMode} onViewChange={setViewMode} />
-          <Button size="sm" onClick={() => { resetForm(); setEditingId(null); setDialogOpen(true); }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          {viewMode !== 'calendar' && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs">From</Label>
+                <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36 h-8" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">To</Label>
+                <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 h-8" />
+              </div>
+              {(dateFrom || dateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); }} className="mt-4">Clear</Button>
+              )}
+            </>
+          )}
+          <div className="mt-4"><ViewToggle view={viewMode} onViewChange={setViewMode} /></div>
+          <Button size="sm" className="mt-4" onClick={() => { resetForm(); setEditingId(null); setDialogOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />Add {isAbsences ? 'Absence' : 'Late'}
           </Button>
         </div>
@@ -135,7 +162,7 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
 
       {isLoading ? <Skeleton className="h-48 w-full" /> : viewMode === 'calendar' ? (
         <AttendanceCalendarView
-        isShowMixed={false}
+          isShowMixed={false}
           items={items}
           type={recordType}
           showEntity={false}

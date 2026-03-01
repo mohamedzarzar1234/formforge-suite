@@ -18,7 +18,7 @@ import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
 import { ViewToggle } from '@/components/ViewToggle';
 import { toast } from 'sonner';
 import { managerAttendanceApi } from '@/services/attendance-api';
-import { managerApi } from '@/services/api';
+import { managerApi, classApi, levelApi } from '@/services/api';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 import { exportToExcel } from '@/lib/excel-utils';
 import { AttendanceQRScanner } from '@/components/AttendanceQRScanner';
@@ -51,7 +51,11 @@ export default function ManagerAttendance() {
   const [bulkRows, setBulkRows] = useState<{ managerId: string; date: string; isJustified: boolean; reason?: string; period?: number }[]>([{ managerId: '', date: today(), isJustified: false, period: 10 }]);
 
   const { data: managersRes } = useQuery({ queryKey: ['managers-all'], queryFn: () => managerApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: classesRes } = useQuery({ queryKey: ['classes-all'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
   const managers = managersRes?.data || [];
+  const classes = classesRes?.data || [];
+  const levels = levelsRes?.data || [];
 
   const { data: absencesRes, isLoading: absLoading } = useQuery({ queryKey: ['manager-absences', filter], queryFn: () => managerAttendanceApi.getAbsences(filter) });
   const { data: latesRes, isLoading: lateLoading } = useQuery({ queryKey: ['manager-lates', filter], queryFn: () => managerAttendanceApi.getLates(filter) });
@@ -64,14 +68,18 @@ export default function ManagerAttendance() {
   const filteredAbsences = useMemo(() => {
     let items = absences;
     if (filter.entityId) items = items.filter(i => i.managerId === filter.entityId);
+    if (filter.classId) { const mIds = managers.filter(m => m.classIds.includes(filter.classId!)).map(m => m.id); items = items.filter(i => mIds.includes(i.managerId)); }
+    if (filter.levelId) { const cIds = classes.filter(c => c.levelId === filter.levelId).map(c => c.id); const mIds = managers.filter(m => m.classIds.some(cid => cIds.includes(cid))).map(m => m.id); items = items.filter(i => mIds.includes(i.managerId)); }
     return items;
-  }, [absences, filter.entityId]);
+  }, [absences, filter, managers, classes]);
 
   const filteredLates = useMemo(() => {
     let items = lates;
     if (filter.entityId) items = items.filter(i => i.managerId === filter.entityId);
+    if (filter.classId) { const mIds = managers.filter(m => m.classIds.includes(filter.classId!)).map(m => m.id); items = items.filter(i => mIds.includes(i.managerId)); }
+    if (filter.levelId) { const cIds = classes.filter(c => c.levelId === filter.levelId).map(c => c.id); const mIds = managers.filter(m => m.classIds.some(cid => cIds.includes(cid))).map(m => m.id); items = items.filter(i => mIds.includes(i.managerId)); }
     return items;
-  }, [lates, filter.entityId]);
+  }, [lates, filter, managers, classes]);
 
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['manager-absences'] }); qc.invalidateQueries({ queryKey: ['manager-lates'] }); qc.invalidateQueries({ queryKey: ['manager-attendance-stats'] }); };
 
@@ -166,6 +174,20 @@ export default function ManagerAttendance() {
                 <div className="space-y-1"><Label className="text-xs">Date To</Label><Input type="date" value={filter.dateTo || ''} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value || undefined }))} className="w-40" /></div>
               </>
             )}
+            <div className="space-y-1">
+              <Label className="text-xs">Level</Label>
+              <Select value={filter.levelId || 'all'} onValueChange={v => setFilter(f => ({ ...f, levelId: v === 'all' ? undefined : v }))}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Levels</SelectItem>{levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Class</Label>
+              <Select value={filter.classId || 'all'} onValueChange={v => setFilter(f => ({ ...f, classId: v === 'all' ? undefined : v }))}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Classes</SelectItem>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear</Button>
             <div className="ml-auto">
               {tab === 'absences' && <ViewToggle view={absView} onViewChange={setAbsView} />}
@@ -185,9 +207,7 @@ export default function ManagerAttendance() {
         <TabsContent value="absences" className="space-y-4">
           <div className="flex gap-2 flex-wrap items-center">
             <Button size="sm" onClick={() => { resetAbsForm(); setAbsDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Absence</Button>
-            <AttendanceQRScanner entityType="managers" mode="single" onScanned={handleScanSingleAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Scan Add</Button>} />
             <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ managerId: '', date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
-            <AttendanceQRScanner entityType="managers" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
             <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
             <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, managerName: getManagerName(a.managerId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'managerName', label: 'Manager' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'manager-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
           </div>

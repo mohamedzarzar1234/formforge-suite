@@ -1,26 +1,47 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teacherApi, subjectApi, classApi, templateApi } from '@/services/api';
 import { DynamicView } from '@/components/DynamicView';
+import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
 import { EntityAttendanceTab } from '@/components/EntityAttendanceTab';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, UserX, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ArrowLeft, UserX, Clock, Pencil, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 export default function TeacherDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: res, isLoading } = useQuery({ queryKey: ['teachers', id], queryFn: () => teacherApi.getById(id!) });
   const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
   const { data: classesRes } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+
   const teacher = res?.data;
   const fields = tplRes?.data?.teacher?.fields || [];
+
+  const updateMut = useMutation({
+    mutationFn: (data: any) => teacherApi.update(id!, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers', id] }); setEditOpen(false); toast.success('Teacher updated'); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => teacherApi.delete(id!),
+    onSuccess: () => { toast.success('Teacher deleted'); navigate('/teachers'); },
+  });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
   if (!teacher) return <div className="text-center py-12 text-muted-foreground">Teacher not found</div>;
@@ -28,11 +49,18 @@ export default function TeacherDetail() {
   const classAssignments = teacher.classAssignments || [];
   const fullName = `${teacher.firstname} ${teacher.lastname}`;
 
+  const openEdit = () => {
+    setEditForm({ firstname: teacher.firstname, lastname: teacher.lastname, dynamicFields: { ...(teacher.dynamicFields || {}) } });
+    setEditOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/teachers')}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold flex-1">{fullName}</h1>
+        <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-2 h-4 w-4" />Edit</Button>
+        <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" />Delete</Button>
         <QRCodeDisplay entityType="teachers" entityId={teacher.id} entityName={fullName} />
       </div>
 
@@ -86,6 +114,34 @@ export default function TeacherDetail() {
           <EntityAttendanceTab entityType="teacher" entityId={teacher.id} entityName={fullName} recordType="lates" />
         </TabsContent>
       </Tabs>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Teacher</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>First Name</Label><Input value={editForm.firstname || ''} onChange={e => setEditForm((f: any) => ({ ...f, firstname: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Last Name</Label><Input value={editForm.lastname || ''} onChange={e => setEditForm((f: any) => ({ ...f, lastname: e.target.value }))} /></div>
+            </div>
+            {fields.length > 0 && (
+              <DynamicFormFields fields={fields} values={editForm.dynamicFields || {}} onChange={(vals) => setEditForm((f: any) => ({ ...f, dynamicFields: vals }))} />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={() => updateMut.mutate(editForm)} disabled={updateMut.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete teacher?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {fullName}.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteMut.mutate()}>Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

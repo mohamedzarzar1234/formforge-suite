@@ -35,6 +35,7 @@ export interface Student {
   lastname: string;
   parentIds: string[];
   defaultParentId?: string;
+  parentRelations?: Record<string, string>;
   classId?: string;
   levelId: string;
   dynamicFields: Record<string, any>;

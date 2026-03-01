@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { questionApi, lessonApi } from '@/services/exam-api';
+import { questionApi, lessonApi, unitApi } from '@/services/exam-api';
+import { subjectApi, levelApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +34,8 @@ export default function Questions() {
   const [search, setSearch] = useState('');
   const [filterLesson, setFilterLesson] = useState<string>(presetLessonId || 'all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
+  const [filterSubject, setFilterSubject] = useState<string>('all');
+  const [filterLevel, setFilterLevel] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Question | null>(null);
 
@@ -46,16 +49,42 @@ export default function Questions() {
   });
 
   const { data: lessonsRes } = useQuery({ queryKey: ['lessons-flat'], queryFn: () => lessonApi.getAllFlat() });
+  const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
   const allLessons = lessonsRes?.data ?? [];
+  const allSubjects = subjectsRes?.data ?? [];
+  const allLevels = levelsRes?.data ?? [];
+
+  // Filter lessons based on subject/level selection
+  const filteredLessons = useMemo(() => {
+    let items = allLessons;
+    if (filterSubject !== 'all') items = items.filter(l => l.subjectId === filterSubject);
+    if (filterLevel !== 'all') items = items.filter(l => l.levelId === filterLevel);
+    return items;
+  }, [allLessons, filterSubject, filterLevel]);
 
   const { data: questionsRes, isLoading } = useQuery({
-    queryKey: ['questions', page, search, filterLesson, filterDifficulty],
+    queryKey: ['questions', page, search, filterLesson, filterDifficulty, filterSubject, filterLevel],
     queryFn: () => questionApi.getAll({
       page, limit: 10, search,
       lessonId: filterLesson !== 'all' ? filterLesson : undefined,
       difficulty: filterDifficulty !== 'all' ? filterDifficulty : undefined,
     }),
   });
+
+  // Client-side filter by subject/level (since questions link to lessons which have subjectId/levelId)
+  const displayQuestions = useMemo(() => {
+    let items = questionsRes?.data ?? [];
+    if (filterSubject !== 'all') {
+      const lessonIds = allLessons.filter(l => l.subjectId === filterSubject).map(l => l.id);
+      items = items.filter(q => lessonIds.includes(q.lessonId));
+    }
+    if (filterLevel !== 'all') {
+      const lessonIds = allLessons.filter(l => l.levelId === filterLevel).map(l => l.id);
+      items = items.filter(q => lessonIds.includes(q.lessonId));
+    }
+    return items;
+  }, [questionsRes?.data, filterSubject, filterLevel, allLessons]);
 
   const createMut = useMutation({
     mutationFn: (data: Omit<Question, 'id' | 'createdAt'>) => questionApi.create(data),
@@ -122,11 +151,25 @@ export default function Questions() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search questions..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
             </div>
+            <Select value={filterSubject} onValueChange={v => { setFilterSubject(v); setFilterLesson('all'); setPage(1); }}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Subject" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {allSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterLesson('all'); setPage(1); }}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Level" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                {allLevels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={filterLesson} onValueChange={v => { setFilterLesson(v); setPage(1); }}>
               <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Lessons" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Lessons</SelectItem>
-                {allLessons.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                {filteredLessons.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterDifficulty} onValueChange={v => { setFilterDifficulty(v); setPage(1); }}>
@@ -154,9 +197,9 @@ export default function Questions() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-              ) : !questionsRes?.data?.length ? (
+              ) : !displayQuestions.length ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No questions found</TableCell></TableRow>
-              ) : questionsRes.data.map(q => (
+              ) : displayQuestions.map(q => (
                 <TableRow key={q.id}>
                   <TableCell className="max-w-[300px]">
                     <p className="font-medium text-foreground truncate">{q.text}</p>

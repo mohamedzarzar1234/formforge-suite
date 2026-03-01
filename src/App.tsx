@@ -26,6 +26,7 @@ import ExamLessons from "./pages/Lessons";
 import ExamQuestions from "./pages/Questions";
 import ExamsList from "./pages/Exams";
 import TakeExam from "./pages/TakeExam";
+import ScanExam from "./pages/ScanExam";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/questions" element={<ExamQuestions />} />
             <Route path="/exams" element={<ExamsList />} />
             <Route path="/exams/:id/take" element={<TakeExam />} />
+            <Route path="/exams/:id/scan" element={<ScanExam />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
