@@ -12,12 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Play, Search, Camera } from 'lucide-react';
+import { Plus, Trash2, Play, Search, Camera, Download, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { PrintExamQuestions } from '@/components/PrintExamQuestions';
 import { PrintAnswerSheet } from '@/components/PrintAnswerSheet';
-import type { ExamConfig, Question, Exam } from '@/types/exam';
+import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { exportToExcel } from '@/lib/excel-utils';
+import type { ExamConfig, Question, Exam, Unit } from '@/types/exam';
 
 function PrintQuestionsButton({ exam }: { exam: Exam }) {
   const { data: questionsRes } = useQuery({
