@@ -52,9 +52,12 @@ export default function Exams() {
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
 
   // Queries
+  const [importOpen, setImportOpen] = useState(false);
+
   const { data: levelsRes } = useQuery({ queryKey: ['levels-all'], queryFn: () => levelApi.getAll({ page: 1, limit: 100 }) });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects-all'], queryFn: () => subjectApi.getAll({ page: 1, limit: 100 }) });
   const { data: allLessonsRes } = useQuery({ queryKey: ['lessons-flat'], queryFn: () => lessonApi.getAllFlat() });
+  const { data: allUnitsRes } = useQuery({ queryKey: ['units-all'], queryFn: () => unitApi.getAll({}) });
 
   const levels = levelsRes?.data ?? [];
   const allSubjects = subjectsRes?.data ?? [];
