@@ -30,6 +30,7 @@ import ExamDetail from "./pages/ExamDetail";
 import ScanExam from "./pages/ScanExam";
 import ExternalExams from "./pages/ExternalExams";
 import ExternalExamDetail from "./pages/ExternalExamDetail";
+import MarkRecords from "./pages/MarkRecords";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
