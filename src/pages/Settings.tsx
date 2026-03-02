@@ -66,6 +66,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="predefined">Predefined Lists</TabsTrigger>
+          <TabsTrigger value="mark-records">Mark Records</TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates">
@@ -74,6 +75,10 @@ export default function SettingsPage() {
 
         <TabsContent value="predefined">
           <PredefinedListsTab />
+        </TabsContent>
+
+        <TabsContent value="mark-records">
+          <MarkRecordSettingsTab />
         </TabsContent>
       </Tabs>
     </div>
