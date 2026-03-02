@@ -7,8 +7,10 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { CSS } from '@dnd-kit/utilities';
 import { templateApi } from '@/services/api';
 import { settingsApi, type PredefinedSettings } from '@/services/settings-api';
+import { markRecordApi } from '@/services/mark-record-api';
 import { defaultTemplates } from '@/services/mock-data';
 import type { EntityType, FieldDefinition, FieldType, EntityTemplateConfig } from '@/types';
+import type { MarkRecordSettings, MarkRecordType, OfficialTemplate, OfficialTemplateColumn } from '@/types/mark-record';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
