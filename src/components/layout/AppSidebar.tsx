@@ -1,7 +1,7 @@
 import { 
   LayoutDashboard, GraduationCap, Users, UserCircle, Briefcase, 
   School, Layers, BookOpen, Settings, ChevronDown, LogOut, GraduationCap as EduIcon,
-  CalendarCheck, ClipboardList, FileQuestion, Library, FileText
+  CalendarCheck, ClipboardList, FileQuestion, Library, FileText, Award
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useState } from 'react';
