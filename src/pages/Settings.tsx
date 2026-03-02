@@ -7,8 +7,10 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { CSS } from '@dnd-kit/utilities';
 import { templateApi } from '@/services/api';
 import { settingsApi, type PredefinedSettings } from '@/services/settings-api';
+import { markRecordApi } from '@/services/mark-record-api';
 import { defaultTemplates } from '@/services/mock-data';
 import type { EntityType, FieldDefinition, FieldType, EntityTemplateConfig } from '@/types';
+import type { MarkRecordSettings, MarkRecordType, OfficialTemplate, OfficialTemplateColumn } from '@/types/mark-record';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -64,6 +66,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="predefined">Predefined Lists</TabsTrigger>
+          <TabsTrigger value="mark-records">Mark Records</TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates">
@@ -72,6 +75,10 @@ export default function SettingsPage() {
 
         <TabsContent value="predefined">
           <PredefinedListsTab />
+        </TabsContent>
+
+        <TabsContent value="mark-records">
+          <MarkRecordSettingsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -379,6 +386,170 @@ function FieldEditorDialog({ open, onOpenChange, field, existingNames, onSave }:
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleSave}>{field ? 'Update' : 'Add'} Field</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MarkRecordSettingsTab() {
+  const qc = useQueryClient();
+  const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
+  const [types, setTypes] = useState<MarkRecordType[]>([]);
+  const [templates, setTemplates] = useState<OfficialTemplate[]>([]);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [editTemplateOpen, setEditTemplateOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<OfficialTemplate | null>(null);
+
+  useEffect(() => {
+    if (settingsRes?.data) {
+      setTypes([...settingsRes.data.types]);
+      setTemplates(JSON.parse(JSON.stringify(settingsRes.data.officialTemplates)));
+    }
+  }, [settingsRes]);
+
+  const saveMut = useMutation({
+    mutationFn: (data: MarkRecordSettings) => markRecordApi.updateSettings(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['mark-record-settings'] }); toast.success('Mark record settings saved'); },
+  });
+
+  const addType = () => {
+    if (!newTypeName.trim()) return;
+    if (types.some(t => t.name === newTypeName.trim())) { toast.error('Type already exists'); return; }
+    setTypes(prev => [...prev, { id: `mrt-${Date.now()}`, name: newTypeName.trim() }]);
+    setNewTypeName('');
+  };
+
+  const removeType = (id: string) => setTypes(prev => prev.filter(t => t.id !== id));
+
+  const handleSave = () => saveMut.mutate({ types, officialTemplates: templates });
+
+  const openTemplateEditor = (tpl?: OfficialTemplate) => {
+    setEditingTemplate(tpl || { id: `otpl-${Date.now()}`, name: '', columns: [] });
+    setEditTemplateOpen(true);
+  };
+
+  const saveTemplate = (tpl: OfficialTemplate) => {
+    setTemplates(prev => {
+      const idx = prev.findIndex(t => t.id === tpl.id);
+      if (idx >= 0) { const next = [...prev]; next[idx] = tpl; return next; }
+      return [...prev, tpl];
+    });
+    setEditTemplateOpen(false);
+  };
+
+  const removeTemplate = (id: string) => setTemplates(prev => prev.filter(t => t.id !== id));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Configure non-official mark types and official templates.</p>
+        <Button onClick={handleSave} disabled={saveMut.isPending}>{saveMut.isPending ? 'Saving...' : 'Save Settings'}</Button>
+      </div>
+
+      {/* Non-Official Types */}
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Non-Official Types</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            {types.map(t => (
+              <div key={t.id} className="flex items-center gap-2">
+                <Input value={t.name} onChange={e => setTypes(prev => prev.map(x => x.id === t.id ? { ...x, name: e.target.value } : x))} className="flex-1" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeType(t.id)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input value={newTypeName} onChange={e => setNewTypeName(e.target.value)} placeholder="e.g. Quiz" onKeyDown={e => e.key === 'Enter' && addType()} />
+            <Button variant="outline" onClick={addType}><Plus className="mr-2 h-4 w-4" />Add</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Official Templates */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Official Templates</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => openTemplateEditor()}><Plus className="mr-2 h-4 w-4" />Add Template</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {templates.length === 0 && <p className="text-muted-foreground text-sm">No official templates configured.</p>}
+          {templates.map(tpl => (
+            <div key={tpl.id} className="flex items-center justify-between p-3 rounded-md border">
+              <div>
+                <p className="font-medium text-sm">{tpl.name}</p>
+                <p className="text-xs text-muted-foreground">{tpl.columns.length} columns · Max: {tpl.columns.reduce((a, c) => a + c.maxScore, 0)}</p>
+              </div>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTemplateEditor(tpl)}><Pencil className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTemplate(tpl.id)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Template Editor Dialog */}
+      <OfficialTemplateEditorDialog open={editTemplateOpen} onOpenChange={setEditTemplateOpen} template={editingTemplate} onSave={saveTemplate} />
+    </div>
+  );
+}
+
+function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave }: {
+  open: boolean; onOpenChange: (o: boolean) => void; template: OfficialTemplate | null; onSave: (t: OfficialTemplate) => void;
+}) {
+  const [name, setName] = useState('');
+  const [columns, setColumns] = useState<OfficialTemplateColumn[]>([]);
+
+  useEffect(() => {
+    if (open && template) {
+      setName(template.name);
+      setColumns(JSON.parse(JSON.stringify(template.columns)));
+    }
+  }, [open, template]);
+
+  const addColumn = () => setColumns(prev => [...prev, { id: `col-${Date.now()}`, name: '', maxScore: 10, order: prev.length + 1 }]);
+
+  const updateColumn = (idx: number, updates: Partial<OfficialTemplateColumn>) => {
+    setColumns(prev => prev.map((c, i) => i === idx ? { ...c, ...updates } : c));
+  };
+
+  const removeColumn = (idx: number) => setColumns(prev => prev.filter((_, i) => i !== idx));
+
+  const handleSave = () => {
+    if (!name.trim()) { toast.error('Template name is required'); return; }
+    if (columns.length === 0) { toast.error('Add at least one column'); return; }
+    onSave({ id: template!.id, name: name.trim(), columns: columns.map((c, i) => ({ ...c, order: i + 1 })) });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{template?.name ? 'Edit Template' : 'Add Template'}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Template Name *</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Semester Report" />
+          </div>
+          <div className="space-y-2">
+            <Label>Columns</Label>
+            <div className="space-y-2">
+              {columns.map((col, idx) => (
+                <div key={col.id} className="flex items-center gap-2">
+                  <Input value={col.name} onChange={e => updateColumn(idx, { name: e.target.value })} placeholder="Column name" className="flex-1" />
+                  <Input type="number" value={col.maxScore} onChange={e => updateColumn(idx, { maxScore: Number(e.target.value) })} className="w-20" min={1} />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeColumn(idx)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" onClick={addColumn}><Plus className="mr-2 h-4 w-4" />Add Column</Button>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={handleSave}>Save Template</Button>
           </div>
         </div>
       </DialogContent>

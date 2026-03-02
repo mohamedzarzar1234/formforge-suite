@@ -1,7 +1,7 @@
 import { 
   LayoutDashboard, GraduationCap, Users, UserCircle, Briefcase, 
   School, Layers, BookOpen, Settings, ChevronDown, LogOut, GraduationCap as EduIcon,
-  CalendarCheck, ClipboardList, FileQuestion, Library, FileText
+  CalendarCheck, ClipboardList, FileQuestion, Library, FileText, Award
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useState } from 'react';
@@ -33,6 +33,7 @@ const examItems = [
   { title: 'Questions', url: '/questions', icon: FileQuestion },
   { title: 'Exams', url: '/exams', icon: FileText },
   { title: 'External Exams', url: '/external-exams', icon: ClipboardList },
+  { title: 'Mark Records', url: '/mark-records', icon: Award },
 ];
 
 export function AppSidebar() {

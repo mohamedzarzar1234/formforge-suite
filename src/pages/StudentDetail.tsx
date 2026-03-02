@@ -6,6 +6,7 @@ import { DynamicView } from '@/components/DynamicView';
 import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
 import { EntityAttendanceTab } from '@/components/EntityAttendanceTab';
+import { StudentMarkRecordsTab } from '@/components/StudentMarkRecordsTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, UserX, Clock, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, UserX, Clock, Pencil, Trash2, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
@@ -78,6 +79,7 @@ export default function StudentDetail() {
           <TabsTrigger value="info">Information</TabsTrigger>
           <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences</TabsTrigger>
           <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Marks</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
@@ -121,6 +123,9 @@ export default function StudentDetail() {
         </TabsContent>
         <TabsContent value="lates">
           <EntityAttendanceTab entityType="student" entityId={student.id} entityName={fullName} recordType="lates" />
+        </TabsContent>
+        <TabsContent value="marks">
+          <StudentMarkRecordsTab studentId={student.id} studentName={fullName} />
         </TabsContent>
       </Tabs>
 
