@@ -22,11 +22,11 @@ export default function MarkRecords() {
   const qc = useQueryClient();
   const [page] = useState(1);
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
-  const [filterType, setFilterType] = useState('');
-  const [filterLevel, setFilterLevel] = useState('');
-  const [filterClass, setFilterClass] = useState('');
-  const [filterSubject, setFilterSubject] = useState('');
-  const [filterStudent, setFilterStudent] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterLevel, setFilterLevel] = useState('all');
+  const [filterClass, setFilterClass] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
+  const [filterStudent, setFilterStudent] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editRecord, setEditRecord] = useState<MarkRecord | null>(null);
