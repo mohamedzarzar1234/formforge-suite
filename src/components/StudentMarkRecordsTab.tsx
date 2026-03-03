@@ -15,8 +15,8 @@ interface Props {
 
 export function StudentMarkRecordsTab({ studentId }: Props) {
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
-  const [filterType, setFilterType] = useState('');
-  const [filterSubject, setFilterSubject] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
 
   const isOfficialFilter = filterOfficial === 'all' ? null : filterOfficial === 'official';
 
