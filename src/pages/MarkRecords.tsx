@@ -22,11 +22,11 @@ export default function MarkRecords() {
   const qc = useQueryClient();
   const [page] = useState(1);
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
-  const [filterType, setFilterType] = useState('');
-  const [filterLevel, setFilterLevel] = useState('');
-  const [filterClass, setFilterClass] = useState('');
-  const [filterSubject, setFilterSubject] = useState('');
-  const [filterStudent, setFilterStudent] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterLevel, setFilterLevel] = useState('all');
+  const [filterClass, setFilterClass] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
+  const [filterStudent, setFilterStudent] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editRecord, setEditRecord] = useState<MarkRecord | null>(null);
@@ -36,7 +36,7 @@ export default function MarkRecords() {
 
   const { data: recordsRes, isLoading } = useQuery({
     queryKey: ['mark-records', page, filterOfficial, filterType, filterLevel, filterClass, filterSubject, filterStudent],
-    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter, typeId: filterType || undefined, levelId: filterLevel || undefined, classId: filterClass || undefined, subjectId: filterSubject || undefined, studentId: filterStudent || undefined }),
+    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, levelId: filterLevel === 'all' ? undefined : filterLevel, classId: filterClass === 'all' ? undefined : filterClass, subjectId: filterSubject === 'all' ? undefined : filterSubject, studentId: filterStudent === 'all' ? undefined : filterStudent }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: studentsRes } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
@@ -146,7 +146,7 @@ export default function MarkRecords() {
                 <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                     {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -157,7 +157,7 @@ export default function MarkRecords() {
               <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterClass(''); }}>
                 <SelectTrigger><SelectValue placeholder="All levels" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -167,8 +167,8 @@ export default function MarkRecords() {
               <Select value={filterClass} onValueChange={setFilterClass}>
                 <SelectTrigger><SelectValue placeholder="All classes" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
-                  {classes.filter(c => !filterLevel || c.levelId === filterLevel).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value="all">All</SelectItem>
+                  {classes.filter(c => filterLevel === 'all' || c.levelId === filterLevel).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -177,7 +177,7 @@ export default function MarkRecords() {
               <Select value={filterSubject} onValueChange={setFilterSubject}>
                 <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -187,7 +187,7 @@ export default function MarkRecords() {
               <Select value={filterStudent} onValueChange={setFilterStudent}>
                 <SelectTrigger><SelectValue placeholder="All students" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
                 </SelectContent>
               </Select>

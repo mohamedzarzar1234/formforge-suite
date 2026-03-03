@@ -15,14 +15,14 @@ interface Props {
 
 export function StudentMarkRecordsTab({ studentId }: Props) {
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
-  const [filterType, setFilterType] = useState('');
-  const [filterSubject, setFilterSubject] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
 
   const isOfficialFilter = filterOfficial === 'all' ? null : filterOfficial === 'official';
 
   const { data: recordsRes, isLoading } = useQuery({
     queryKey: ['mark-records', 'student', studentId, filterOfficial, filterType, filterSubject],
-    queryFn: () => markRecordApi.getAll({ page: 1, limit: 1000, studentId, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType || undefined, subjectId: filterSubject || undefined }),
+    queryFn: () => markRecordApi.getAll({ page: 1, limit: 1000, studentId, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, subjectId: filterSubject === 'all' ? undefined : filterSubject }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
@@ -66,7 +66,7 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -77,7 +77,7 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
           <Select value={filterSubject} onValueChange={setFilterSubject}>
             <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
