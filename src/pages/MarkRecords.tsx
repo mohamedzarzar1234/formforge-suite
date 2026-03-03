@@ -36,7 +36,7 @@ export default function MarkRecords() {
 
   const { data: recordsRes, isLoading } = useQuery({
     queryKey: ['mark-records', page, filterOfficial, filterType, filterLevel, filterClass, filterSubject, filterStudent],
-    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter, typeId: filterType || undefined, levelId: filterLevel || undefined, classId: filterClass || undefined, subjectId: filterSubject || undefined, studentId: filterStudent || undefined }),
+    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, levelId: filterLevel === 'all' ? undefined : filterLevel, classId: filterClass === 'all' ? undefined : filterClass, subjectId: filterSubject === 'all' ? undefined : filterSubject, studentId: filterStudent === 'all' ? undefined : filterStudent }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: studentsRes } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
