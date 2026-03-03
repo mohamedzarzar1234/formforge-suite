@@ -167,8 +167,8 @@ export default function MarkRecords() {
               <Select value={filterClass} onValueChange={setFilterClass}>
                 <SelectTrigger><SelectValue placeholder="All classes" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
-                  {classes.filter(c => !filterLevel || c.levelId === filterLevel).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value="all">All</SelectItem>
+                  {classes.filter(c => filterLevel === 'all' || c.levelId === filterLevel).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
