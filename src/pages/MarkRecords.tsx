@@ -187,7 +187,7 @@ export default function MarkRecords() {
               <Select value={filterStudent} onValueChange={setFilterStudent}>
                 <SelectTrigger><SelectValue placeholder="All students" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
                 </SelectContent>
               </Select>
