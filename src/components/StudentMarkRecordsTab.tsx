@@ -22,7 +22,7 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
 
   const { data: recordsRes, isLoading } = useQuery({
     queryKey: ['mark-records', 'student', studentId, filterOfficial, filterType, filterSubject],
-    queryFn: () => markRecordApi.getAll({ page: 1, limit: 1000, studentId, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType || undefined, subjectId: filterSubject || undefined }),
+    queryFn: () => markRecordApi.getAll({ page: 1, limit: 1000, studentId, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, subjectId: filterSubject === 'all' ? undefined : filterSubject }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
