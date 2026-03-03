@@ -66,7 +66,7 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
