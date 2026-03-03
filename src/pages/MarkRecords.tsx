@@ -157,7 +157,7 @@ export default function MarkRecords() {
               <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterClass(''); }}>
                 <SelectTrigger><SelectValue placeholder="All levels" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
