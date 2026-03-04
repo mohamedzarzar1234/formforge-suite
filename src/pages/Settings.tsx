@@ -396,6 +396,7 @@ function FieldEditorDialog({ open, onOpenChange, field, existingNames, onSave }:
 function MarkRecordSettingsTab() {
   const qc = useQueryClient();
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels'], queryFn: () => import('@/services/api').then(m => m.levelApi.getAll({ page: 1, limit: 1000 })) });
   const [types, setTypes] = useState<MarkRecordType[]>([]);
   const [templates, setTemplates] = useState<OfficialTemplate[]>([]);
   const [newTypeName, setNewTypeName] = useState('');
