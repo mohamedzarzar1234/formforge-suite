@@ -502,15 +502,17 @@ function MarkRecordSettingsTab() {
   );
 }
 
-function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave }: {
-  open: boolean; onOpenChange: (o: boolean) => void; template: OfficialTemplate | null; onSave: (t: OfficialTemplate) => void;
+function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave, levels, existingTemplates }: {
+  open: boolean; onOpenChange: (o: boolean) => void; template: OfficialTemplate | null; onSave: (t: OfficialTemplate) => void; levels: any[]; existingTemplates: OfficialTemplate[];
 }) {
   const [name, setName] = useState('');
+  const [levelId, setLevelId] = useState('');
   const [columns, setColumns] = useState<OfficialTemplateColumn[]>([]);
 
   useEffect(() => {
     if (open && template) {
       setName(template.name);
+      setLevelId(template.levelId || '');
       setColumns(JSON.parse(JSON.stringify(template.columns)));
     }
   }, [open, template]);
@@ -523,10 +525,15 @@ function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave }: 
 
   const removeColumn = (idx: number) => setColumns(prev => prev.filter((_, i) => i !== idx));
 
+  // Levels that already have a template (excluding current)
+  const usedLevelIds = existingTemplates.filter(t => t.id !== template?.id).map(t => t.levelId);
+  const availableLevels = levels.filter(l => !usedLevelIds.includes(l.id));
+
   const handleSave = () => {
     if (!name.trim()) { toast.error('Template name is required'); return; }
+    if (!levelId) { toast.error('Level is required'); return; }
     if (columns.length === 0) { toast.error('Add at least one column'); return; }
-    onSave({ id: template!.id, name: name.trim(), columns: columns.map((c, i) => ({ ...c, order: i + 1 })) });
+    onSave({ id: template!.id, name: name.trim(), levelId, columns: columns.map((c, i) => ({ ...c, order: i + 1 })) });
   };
 
   return (
