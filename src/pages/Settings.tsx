@@ -427,7 +427,7 @@ function MarkRecordSettingsTab() {
   const handleSave = () => saveMut.mutate({ types, officialTemplates: templates });
 
   const openTemplateEditor = (tpl?: OfficialTemplate) => {
-    setEditingTemplate(tpl || { id: `otpl-${Date.now()}`, name: '', columns: [] });
+    setEditingTemplate(tpl || { id: `otpl-${Date.now()}`, name: '', levelId: '', columns: [] });
     setEditTemplateOpen(true);
   };
 
