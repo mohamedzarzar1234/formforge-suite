@@ -125,7 +125,7 @@ export default function StudentDetail() {
           <EntityAttendanceTab entityType="student" entityId={student.id} entityName={fullName} recordType="lates" />
         </TabsContent>
         <TabsContent value="marks">
-          <StudentMarkRecordsTab studentId={student.id} studentName={fullName} />
+          <StudentMarkRecordsTab studentId={student.id} studentName={fullName} studentLevelId={student.levelId} studentClassId={student.classId} />
         </TabsContent>
       </Tabs>
 
