@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { markRecordApi } from '@/services/mark-record-api';
 import { studentApi, levelApi, classApi, subjectApi } from '@/services/api';
@@ -27,7 +27,8 @@ export default function MarkRecords() {
   const [filterClass, setFilterClass] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
   const [filterStudent, setFilterStudent] = useState('all');
-  const [createOpen, setCreateOpen] = useState(false);
+  const [nonOfficialOpen, setNonOfficialOpen] = useState(false);
+  const [officialOpen, setOfficialOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editRecord, setEditRecord] = useState<MarkRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -36,7 +37,7 @@ export default function MarkRecords() {
 
   const { data: recordsRes, isLoading } = useQuery({
     queryKey: ['mark-records', page, filterOfficial, filterType, filterLevel, filterClass, filterSubject, filterStudent],
-    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, levelId: filterLevel === 'all' ? undefined : filterLevel, classId: filterClass === 'all' ? undefined : filterClass, subjectId: filterSubject === 'all' ? undefined : filterSubject, studentId: filterStudent === 'all' ? undefined : filterStudent }),
+    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, levelId: filterLevel === 'all' ? undefined : filterLevel, classId: filterClass === 'all' ? undefined : filterClass, subjectId: filterSubject === 'all' ? undefined : filterSubject, studentId: filterStudent === 'all' ? undefined : filterStudent }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: studentsRes } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
@@ -111,6 +112,15 @@ export default function MarkRecords() {
     });
   };
 
+  const handleEditClick = (record: MarkRecord) => {
+    setEditRecord(record);
+    if (record.isOfficial) {
+      setOfficialOpen(true);
+    } else {
+      setNonOfficialOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -121,7 +131,8 @@ export default function MarkRecords() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-2 h-4 w-4" />Export</Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
-          <Button size="sm" onClick={() => { setEditRecord(null); setCreateOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Record</Button>
+          <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setOfficialOpen(true); }}><Plus className="mr-2 h-4 w-4" />Official</Button>
+          <Button size="sm" onClick={() => { setEditRecord(null); setNonOfficialOpen(true); }}><Plus className="mr-2 h-4 w-4" />Non-Official</Button>
         </div>
       </div>
 
@@ -154,7 +165,7 @@ export default function MarkRecords() {
             )}
             <div className="space-y-1">
               <Label className="text-xs">Level</Label>
-              <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterClass(''); }}>
+              <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterClass('all'); }}>
                 <SelectTrigger><SelectValue placeholder="All levels" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
@@ -231,8 +242,10 @@ export default function MarkRecords() {
                 <TableCell className="max-w-32 truncate">{record.notes}</TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditRecord(record); setCreateOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(record.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(record)}><Pencil className="h-4 w-4" /></Button>
+                    {!record.isOfficial && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(record.id)}><Trash2 className="h-4 w-4" /></Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -241,15 +254,26 @@ export default function MarkRecords() {
         </Table>
       </div>
 
-      <MarkRecordFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        record={editRecord}
+      <NonOfficialFormDialog
+        open={nonOfficialOpen}
+        onOpenChange={setNonOfficialOpen}
+        record={editRecord as NonOfficialMarkRecord | null}
         students={students}
         subjects={subjects}
         levels={levels}
         classes={classes}
         types={types}
+        onSaved={() => qc.invalidateQueries({ queryKey: ['mark-records'] })}
+      />
+
+      <OfficialFormDialog
+        open={officialOpen}
+        onOpenChange={setOfficialOpen}
+        record={editRecord as OfficialMarkRecord | null}
+        students={students}
+        subjects={subjects}
+        levels={levels}
+        classes={classes}
         templates={templates}
         onSaved={() => qc.invalidateQueries({ queryKey: ['mark-records'] })}
       />
@@ -271,193 +295,141 @@ export default function MarkRecords() {
   );
 }
 
-// Form dialog for creating/editing mark records
-function MarkRecordFormDialog({ open, onOpenChange, record, students, subjects, levels, classes, types, templates, onSaved }: {
+// ─── Non-Official Form ───────────────────────────────────────────
+function NonOfficialFormDialog({ open, onOpenChange, record, students, subjects, levels, classes, types, onSaved }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  record: MarkRecord | null;
+  record: NonOfficialMarkRecord | null;
   students: any[];
   subjects: any[];
   levels: any[];
   classes: any[];
   types: any[];
-  templates: any[];
   onSaved: () => void;
 }) {
-  const [isOfficial, setIsOfficial] = useState(false);
-  const [studentId, setStudentId] = useState('');
-  const [subjectId, setSubjectId] = useState('');
   const [levelId, setLevelId] = useState('');
   const [classId, setClassId] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [subjectId, setSubjectId] = useState('');
   const [typeId, setTypeId] = useState('');
-  const [templateId, setTemplateId] = useState('');
   const [score, setScore] = useState(0);
-  const [scores, setScores] = useState<Record<string, number>>({});
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
 
-  const createMut = useMutation({
-    mutationFn: (data: any) => record ? markRecordApi.update(record.id, data) : markRecordApi.create(data),
-    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(record ? 'Record updated' : 'Record created'); },
+  const isEditing = !!record && !record.isOfficial;
+
+  useEffect(() => {
+    if (open) {
+      if (record && !record.isOfficial) {
+        setLevelId(record.levelId);
+        setClassId(record.classId);
+        setStudentId(record.studentId);
+        setSubjectId(record.subjectId);
+        setTypeId(record.typeId);
+        setScore(record.score);
+        setDate(record.date);
+        setNotes(record.notes);
+      } else {
+        setLevelId(''); setClassId(''); setStudentId(''); setSubjectId('');
+        setTypeId(''); setScore(0); setDate(new Date().toISOString().split('T')[0]); setNotes('');
+      }
+    }
+  }, [open, record]);
+
+  const filteredStudents = students.filter(s => {
+    if (classId) return s.classId === classId;
+    if (levelId) return s.levelId === levelId;
+    return true;
   });
 
-  // Reset form when dialog opens
-  const resetForm = () => {
-    if (record) {
-      setIsOfficial(record.isOfficial);
-      setStudentId(record.studentId);
-      setSubjectId(record.subjectId);
-      setLevelId(record.levelId);
-      setClassId(record.classId);
-      setDate(record.date);
-      setNotes(record.notes);
-      if (record.isOfficial) {
-        setTemplateId((record as OfficialMarkRecord).templateId);
-        setScores({ ...(record as OfficialMarkRecord).scores });
-      } else {
-        setTypeId((record as NonOfficialMarkRecord).typeId);
-        setScore((record as NonOfficialMarkRecord).score);
-      }
-    } else {
-      setIsOfficial(false);
-      setStudentId('');
-      setSubjectId('');
-      setLevelId('');
-      setClassId('');
-      setTypeId('');
-      setTemplateId('');
-      setScore(0);
-      setScores({});
-      setDate(new Date().toISOString().split('T')[0]);
-      setNotes('');
-    }
-  };
-
-  // Auto-fill level/class when student is selected
-  const handleStudentChange = (sid: string) => {
-    setStudentId(sid);
-    const student = students.find(s => s.id === sid);
-    if (student) {
-      setLevelId(student.levelId || '');
-      setClassId(student.classId || '');
-    }
-  };
-
-  const selectedTemplate = templates.find((t: any) => t.id === templateId);
+  const createMut = useMutation({
+    mutationFn: (data: any) => isEditing ? markRecordApi.update(record!.id, data) : markRecordApi.create(data),
+    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(isEditing ? 'Record updated' : 'Record created'); },
+  });
 
   const handleSave = () => {
-    if (!studentId || !subjectId) { toast.error('Student and Subject are required'); return; }
-    if (isOfficial) {
-      if (!templateId) { toast.error('Select a template'); return; }
-      createMut.mutate({ studentId, subjectId, levelId, classId, templateId, scores, date, notes, isOfficial: true });
-    } else {
-      if (!typeId) { toast.error('Select a type'); return; }
-      createMut.mutate({ studentId, subjectId, levelId, classId, typeId, score, date, notes, isOfficial: false });
-    }
+    if (!studentId || !subjectId || !typeId) { toast.error('Student, Subject and Type are required'); return; }
+    const student = students.find(s => s.id === studentId);
+    createMut.mutate({
+      studentId, subjectId,
+      levelId: levelId || student?.levelId || '',
+      classId: classId || student?.classId || '',
+      typeId, score, date, notes, isOfficial: false,
+    });
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) resetForm(); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{record ? 'Edit Mark Record' : 'Add Mark Record'}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEditing ? 'Edit Non-Official Record' : 'Add Non-Official Record'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select value={isOfficial ? 'official' : 'non-official'} onValueChange={v => setIsOfficial(v === 'official')}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="non-official">Non-Official</SelectItem>
-                <SelectItem value="official">Official</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Level</Label>
+              <Select value={levelId || 'none'} onValueChange={v => { setLevelId(v === 'none' ? '' : v); setClassId(''); setStudentId(''); }}>
+                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All levels</SelectItem>
+                  {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Class</Label>
+              <Select value={classId || 'none'} onValueChange={v => { setClassId(v === 'none' ? '' : v); setStudentId(''); }}>
+                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All classes</SelectItem>
+                  {classes.filter((c: any) => !levelId || c.levelId === levelId).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label>Student *</Label>
-            <Select value={studentId} onValueChange={handleStudentChange}>
+            <Select value={studentId || 'none'} onValueChange={v => setStudentId(v === 'none' ? '' : v)}>
               <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
-              <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                <SelectItem value="none">Select student</SelectItem>
+                {filteredStudents.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
+              </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Subject *</Label>
-              <Select value={subjectId} onValueChange={setSubjectId}>
+              <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
-                <SelectContent>{subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value="none">Select subject</SelectItem>
+                  {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Type *</Label>
+              <Select value={typeId || 'none'} onValueChange={v => setTypeId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select type</SelectItem>
+                  {types.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Score</Label>
+              <Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} />
             </div>
             <div className="space-y-2">
               <Label>Date</Label>
               <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Level</Label>
-              <Select value={levelId} onValueChange={v => { setLevelId(v); setClassId(''); }}>
-                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
-                <SelectContent>{levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Class</Label>
-              <Select value={classId} onValueChange={setClassId}>
-                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                <SelectContent>{classes.filter((c: any) => !levelId || c.levelId === levelId).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {isOfficial ? (
-            <>
-              <div className="space-y-2">
-                <Label>Template *</Label>
-                <Select value={templateId} onValueChange={v => { setTemplateId(v); setScores({}); }}>
-                  <SelectTrigger><SelectValue placeholder="Select template" /></SelectTrigger>
-                  <SelectContent>{templates.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              {selectedTemplate && (
-                <div className="space-y-2">
-                  <Label>Scores</Label>
-                  <div className="space-y-2 rounded-md border p-3">
-                    {selectedTemplate.columns.sort((a: any, b: any) => a.order - b.order).map((col: any) => (
-                      <div key={col.id} className="flex items-center gap-3">
-                        <span className="text-sm flex-1">{col.name} <span className="text-muted-foreground">(max: {col.maxScore})</span></span>
-                        <Input
-                          type="number"
-                          className="w-24"
-                          min={0}
-                          max={col.maxScore}
-                          value={scores[col.id] ?? ''}
-                          onChange={e => setScores(prev => ({ ...prev, [col.id]: Number(e.target.value) }))}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Type *</Label>
-                  <Select value={typeId} onValueChange={setTypeId}>
-                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                    <SelectContent>{types.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Score</Label>
-                  <Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} />
-                </div>
-              </div>
-            </>
-          )}
 
           <div className="space-y-2">
             <Label>Notes</Label>
@@ -466,7 +438,196 @@ function MarkRecordFormDialog({ open, onOpenChange, record, students, subjects, 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={createMut.isPending}>{record ? 'Update' : 'Create'}</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending}>{isEditing ? 'Update' : 'Create'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Official Form ───────────────────────────────────────────────
+function OfficialFormDialog({ open, onOpenChange, record, students, subjects, levels, classes, templates, onSaved }: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  record: OfficialMarkRecord | null;
+  students: any[];
+  subjects: any[];
+  levels: any[];
+  classes: any[];
+  templates: any[];
+  onSaved: () => void;
+}) {
+  const [levelId, setLevelId] = useState('');
+  const [classId, setClassId] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [subjectId, setSubjectId] = useState('');
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+  const [existingId, setExistingId] = useState<string | null>(null);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      if (record && record.isOfficial) {
+        setLevelId(record.levelId);
+        setClassId(record.classId);
+        setStudentId(record.studentId);
+        setSubjectId(record.subjectId);
+        setScores({ ...record.scores });
+        setDate(record.date);
+        setNotes(record.notes);
+        setExistingId(record.id);
+      } else {
+        setLevelId(''); setClassId(''); setStudentId(''); setSubjectId('');
+        setScores({}); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setExistingId(null);
+      }
+    }
+  }, [open, record]);
+
+  // Auto-load existing official record when student+subject selected
+  useEffect(() => {
+    if (studentId && subjectId && open && !(record?.isOfficial)) {
+      setLoadingExisting(true);
+      markRecordApi.findOfficialRecord(studentId, subjectId).then(res => {
+        if (res.data) {
+          setScores({ ...res.data.scores });
+          setDate(res.data.date);
+          setNotes(res.data.notes);
+          setExistingId(res.data.id);
+        } else {
+          setScores({});
+          setExistingId(null);
+        }
+        setLoadingExisting(false);
+      });
+    }
+  }, [studentId, subjectId]);
+
+  const template = templates.find((t: any) => t.levelId === levelId);
+
+  const filteredStudents = students.filter(s => {
+    if (classId) return s.classId === classId;
+    if (levelId) return s.levelId === levelId;
+    return true;
+  });
+
+  const upsertMut = useMutation({
+    mutationFn: (data: any) => markRecordApi.upsertOfficial(data),
+    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(existingId ? 'Official record updated' : 'Official record created'); },
+  });
+
+  const handleSave = () => {
+    if (!studentId || !subjectId) { toast.error('Student and Subject are required'); return; }
+    if (!template) { toast.error('No template defined for this level'); return; }
+    const student = students.find(s => s.id === studentId);
+    upsertMut.mutate({
+      studentId, subjectId,
+      levelId: levelId || student?.levelId || '',
+      classId: classId || student?.classId || '',
+      templateId: template.id,
+      scores, date, notes, isOfficial: true,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Official Mark Record</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Level *</Label>
+              <Select value={levelId || 'none'} onValueChange={v => { setLevelId(v === 'none' ? '' : v); setClassId(''); setStudentId(''); setScores({}); setExistingId(null); }}>
+                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select level</SelectItem>
+                  {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Class</Label>
+              <Select value={classId || 'none'} onValueChange={v => { setClassId(v === 'none' ? '' : v); setStudentId(''); }}>
+                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All classes</SelectItem>
+                  {classes.filter((c: any) => !levelId || c.levelId === levelId).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Student *</Label>
+              <Select value={studentId || 'none'} onValueChange={v => setStudentId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select student</SelectItem>
+                  {filteredStudents.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subject *</Label>
+              <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select subject</SelectItem>
+                  {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {levelId && !template && (
+            <p className="text-sm text-destructive">No official template configured for this level. Please configure one in Settings.</p>
+          )}
+
+          {existingId && (
+            <Badge variant="outline" className="text-xs">Editing existing record — values will be updated</Badge>
+          )}
+
+          {template && studentId && subjectId && (
+            <div className="space-y-2">
+              <Label>{template.name}</Label>
+              {loadingExisting ? (
+                <p className="text-sm text-muted-foreground">Loading...</p>
+              ) : (
+                <div className="space-y-2 rounded-md border p-3">
+                  {template.columns.sort((a: any, b: any) => a.order - b.order).map((col: any) => (
+                    <div key={col.id} className="flex items-center gap-3">
+                      <span className="text-sm flex-1">{col.name} <span className="text-muted-foreground">(max: {col.maxScore})</span></span>
+                      <Input
+                        type="number"
+                        className="w-24"
+                        min={0}
+                        max={col.maxScore}
+                        value={scores[col.id] ?? ''}
+                        onChange={e => setScores(prev => ({ ...prev, [col.id]: Number(e.target.value) }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={upsertMut.isPending}>{existingId ? 'Update' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

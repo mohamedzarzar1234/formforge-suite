@@ -396,6 +396,7 @@ function FieldEditorDialog({ open, onOpenChange, field, existingNames, onSave }:
 function MarkRecordSettingsTab() {
   const qc = useQueryClient();
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
+  const { data: levelsRes } = useQuery({ queryKey: ['levels'], queryFn: () => import('@/services/api').then(m => m.levelApi.getAll({ page: 1, limit: 1000 })) });
   const [types, setTypes] = useState<MarkRecordType[]>([]);
   const [templates, setTemplates] = useState<OfficialTemplate[]>([]);
   const [newTypeName, setNewTypeName] = useState('');
@@ -426,7 +427,7 @@ function MarkRecordSettingsTab() {
   const handleSave = () => saveMut.mutate({ types, officialTemplates: templates });
 
   const openTemplateEditor = (tpl?: OfficialTemplate) => {
-    setEditingTemplate(tpl || { id: `otpl-${Date.now()}`, name: '', columns: [] });
+    setEditingTemplate(tpl || { id: `otpl-${Date.now()}`, name: '', levelId: '', columns: [] });
     setEditTemplateOpen(true);
   };
 
@@ -477,36 +478,41 @@ function MarkRecordSettingsTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           {templates.length === 0 && <p className="text-muted-foreground text-sm">No official templates configured.</p>}
-          {templates.map(tpl => (
-            <div key={tpl.id} className="flex items-center justify-between p-3 rounded-md border">
-              <div>
-                <p className="font-medium text-sm">{tpl.name}</p>
-                <p className="text-xs text-muted-foreground">{tpl.columns.length} columns · Max: {tpl.columns.reduce((a, c) => a + c.maxScore, 0)}</p>
+          {templates.map(tpl => {
+            const levelName = levelsRes?.data?.find(l => l.id === tpl.levelId)?.name || 'No level';
+            return (
+              <div key={tpl.id} className="flex items-center justify-between p-3 rounded-md border">
+                <div>
+                  <p className="font-medium text-sm">{tpl.name}</p>
+                  <p className="text-xs text-muted-foreground">Level: {levelName} · {tpl.columns.length} columns · Max: {tpl.columns.reduce((a, c) => a + c.maxScore, 0)}</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTemplateEditor(tpl)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTemplate(tpl.id)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
               </div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTemplateEditor(tpl)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTemplate(tpl.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
       {/* Template Editor Dialog */}
-      <OfficialTemplateEditorDialog open={editTemplateOpen} onOpenChange={setEditTemplateOpen} template={editingTemplate} onSave={saveTemplate} />
+      <OfficialTemplateEditorDialog open={editTemplateOpen} onOpenChange={setEditTemplateOpen} template={editingTemplate} onSave={saveTemplate} levels={levelsRes?.data || []} existingTemplates={templates} />
     </div>
   );
 }
 
-function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave }: {
-  open: boolean; onOpenChange: (o: boolean) => void; template: OfficialTemplate | null; onSave: (t: OfficialTemplate) => void;
+function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave, levels, existingTemplates }: {
+  open: boolean; onOpenChange: (o: boolean) => void; template: OfficialTemplate | null; onSave: (t: OfficialTemplate) => void; levels: any[]; existingTemplates: OfficialTemplate[];
 }) {
   const [name, setName] = useState('');
+  const [levelId, setLevelId] = useState('');
   const [columns, setColumns] = useState<OfficialTemplateColumn[]>([]);
 
   useEffect(() => {
     if (open && template) {
       setName(template.name);
+      setLevelId(template.levelId || '');
       setColumns(JSON.parse(JSON.stringify(template.columns)));
     }
   }, [open, template]);
@@ -519,10 +525,15 @@ function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave }: 
 
   const removeColumn = (idx: number) => setColumns(prev => prev.filter((_, i) => i !== idx));
 
+  // Levels that already have a template (excluding current)
+  const usedLevelIds = existingTemplates.filter(t => t.id !== template?.id).map(t => t.levelId);
+  const availableLevels = levels.filter(l => !usedLevelIds.includes(l.id));
+
   const handleSave = () => {
     if (!name.trim()) { toast.error('Template name is required'); return; }
+    if (!levelId) { toast.error('Level is required'); return; }
     if (columns.length === 0) { toast.error('Add at least one column'); return; }
-    onSave({ id: template!.id, name: name.trim(), columns: columns.map((c, i) => ({ ...c, order: i + 1 })) });
+    onSave({ id: template!.id, name: name.trim(), levelId, columns: columns.map((c, i) => ({ ...c, order: i + 1 })) });
   };
 
   return (
@@ -530,9 +541,24 @@ function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave }: 
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{template?.name ? 'Edit Template' : 'Add Template'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Template Name *</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Semester Report" />
+           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Template Name *</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Semester Report" />
+            </div>
+            <div className="space-y-2">
+              <Label>Level *</Label>
+              <Select value={levelId || 'none'} onValueChange={v => setLevelId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select level</SelectItem>
+                  {availableLevels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  {levelId && !availableLevels.find(l => l.id === levelId) && levels.find(l => l.id === levelId) && (
+                    <SelectItem value={levelId}>{levels.find(l => l.id === levelId)?.name} (current)</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Columns</Label>
