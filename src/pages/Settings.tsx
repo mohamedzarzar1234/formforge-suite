@@ -497,7 +497,7 @@ function MarkRecordSettingsTab() {
       </Card>
 
       {/* Template Editor Dialog */}
-      <OfficialTemplateEditorDialog open={editTemplateOpen} onOpenChange={setEditTemplateOpen} template={editingTemplate} onSave={saveTemplate} />
+      <OfficialTemplateEditorDialog open={editTemplateOpen} onOpenChange={setEditTemplateOpen} template={editingTemplate} onSave={saveTemplate} levels={levelsRes?.data || []} existingTemplates={templates} />
     </div>
   );
 }
