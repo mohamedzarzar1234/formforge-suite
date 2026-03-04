@@ -478,18 +478,21 @@ function MarkRecordSettingsTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           {templates.length === 0 && <p className="text-muted-foreground text-sm">No official templates configured.</p>}
-          {templates.map(tpl => (
-            <div key={tpl.id} className="flex items-center justify-between p-3 rounded-md border">
-              <div>
-                <p className="font-medium text-sm">{tpl.name}</p>
-                <p className="text-xs text-muted-foreground">{tpl.columns.length} columns · Max: {tpl.columns.reduce((a, c) => a + c.maxScore, 0)}</p>
+          {templates.map(tpl => {
+            const levelName = levelsRes?.data?.find(l => l.id === tpl.levelId)?.name || 'No level';
+            return (
+              <div key={tpl.id} className="flex items-center justify-between p-3 rounded-md border">
+                <div>
+                  <p className="font-medium text-sm">{tpl.name}</p>
+                  <p className="text-xs text-muted-foreground">Level: {levelName} · {tpl.columns.length} columns · Max: {tpl.columns.reduce((a, c) => a + c.maxScore, 0)}</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTemplateEditor(tpl)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTemplate(tpl.id)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
               </div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openTemplateEditor(tpl)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeTemplate(tpl.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
