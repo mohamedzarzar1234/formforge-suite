@@ -541,9 +541,24 @@ function OfficialTemplateEditorDialog({ open, onOpenChange, template, onSave, le
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{template?.name ? 'Edit Template' : 'Add Template'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Template Name *</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Semester Report" />
+           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Template Name *</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Semester Report" />
+            </div>
+            <div className="space-y-2">
+              <Label>Level *</Label>
+              <Select value={levelId || 'none'} onValueChange={v => setLevelId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select level</SelectItem>
+                  {availableLevels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  {levelId && !availableLevels.find(l => l.id === levelId) && levels.find(l => l.id === levelId) && (
+                    <SelectItem value={levelId}>{levels.find(l => l.id === levelId)?.name} (current)</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Columns</Label>
