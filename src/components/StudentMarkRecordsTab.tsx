@@ -1,22 +1,36 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { markRecordApi } from '@/services/mark-record-api';
 import { subjectApi } from '@/services/api';
 import type { NonOfficialMarkRecord, OfficialMarkRecord, MarkRecord } from '@/types/mark-record';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Props {
   studentId: string;
   studentName: string;
+  studentLevelId?: string;
+  studentClassId?: string;
 }
 
-export function StudentMarkRecordsTab({ studentId }: Props) {
+export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, studentClassId }: Props) {
+  const qc = useQueryClient();
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
   const [filterType, setFilterType] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
+
+  const [addNonOfficialOpen, setAddNonOfficialOpen] = useState(false);
+  const [addOfficialOpen, setAddOfficialOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<MarkRecord | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const isOfficialFilter = filterOfficial === 'all' ? null : filterOfficial === 'official';
 
@@ -26,6 +40,11 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => markRecordApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['mark-records'] }); toast.success('Record deleted'); setDeleteId(null); },
+  });
 
   const records = recordsRes?.data || [];
   const types = settingsRes?.data?.types || [];
@@ -46,41 +65,60 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
     return `${total}/${max}`;
   };
 
+  const handleEditClick = (record: MarkRecord) => {
+    setEditRecord(record);
+    if (record.isOfficial) {
+      setAddOfficialOpen(true);
+    } else {
+      setAddNonOfficialOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Category</Label>
-          <Select value={filterOfficial} onValueChange={setFilterOfficial}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="official">Official</SelectItem>
-              <SelectItem value="non-official">Non-Official</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {filterOfficial !== 'official' && (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1">
           <div className="space-y-1">
-            <Label className="text-xs">Type</Label>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
+            <Label className="text-xs">Category</Label>
+            <Select value={filterOfficial} onValueChange={setFilterOfficial}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                <SelectItem value="official">Official</SelectItem>
+                <SelectItem value="non-official">Non-Official</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        )}
-        <div className="space-y-1">
-          <Label className="text-xs">Subject</Label>
-          <Select value={filterSubject} onValueChange={setFilterSubject}>
-            <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {filterOfficial !== 'official' && (
+            <div className="space-y-1">
+              <Label className="text-xs">Type</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label className="text-xs">Subject</Label>
+            <Select value={filterSubject} onValueChange={setFilterSubject}>
+              <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex gap-2 self-end">
+          <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setAddOfficialOpen(true); }}>
+            <Plus className="mr-1 h-4 w-4" />Official
+          </Button>
+          <Button size="sm" onClick={() => { setEditRecord(null); setAddNonOfficialOpen(true); }}>
+            <Plus className="mr-1 h-4 w-4" />Non-Official
+          </Button>
         </div>
       </div>
 
@@ -94,13 +132,14 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
               <TableHead>Score</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead className="w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : records.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No mark records found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No mark records found</TableCell></TableRow>
             ) : records.map(record => (
               <TableRow key={record.id}>
                 <TableCell>{getSubjectName(record.subjectId)}</TableCell>
@@ -113,11 +152,242 @@ export function StudentMarkRecordsTab({ studentId }: Props) {
                 <TableCell className="font-mono">{getScoreDisplay(record)}</TableCell>
                 <TableCell>{record.date}</TableCell>
                 <TableCell className="max-w-32 truncate">{record.notes}</TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(record)}><Pencil className="h-4 w-4" /></Button>
+                    {!record.isOfficial && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(record.id)}><Trash2 className="h-4 w-4" /></Button>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {/* Non-Official Add/Edit */}
+      <StudentNonOfficialDialog
+        open={addNonOfficialOpen}
+        onOpenChange={setAddNonOfficialOpen}
+        record={editRecord as NonOfficialMarkRecord | null}
+        studentId={studentId}
+        studentLevelId={studentLevelId}
+        studentClassId={studentClassId}
+        subjects={subjects}
+        types={types}
+        onSaved={() => qc.invalidateQueries({ queryKey: ['mark-records'] })}
+      />
+
+      {/* Official Add/Edit */}
+      <StudentOfficialDialog
+        open={addOfficialOpen}
+        onOpenChange={setAddOfficialOpen}
+        record={editRecord as OfficialMarkRecord | null}
+        studentId={studentId}
+        studentLevelId={studentLevelId}
+        studentClassId={studentClassId}
+        subjects={subjects}
+        templates={templates}
+        onSaved={() => qc.invalidateQueries({ queryKey: ['mark-records'] })}
+      />
+
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete record?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteId && deleteMut.mutate(deleteId)}>Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+// ─── Student Non-Official Dialog ─────────────────────────────────
+function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, studentLevelId, studentClassId, subjects, types, onSaved }: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  record: NonOfficialMarkRecord | null;
+  studentId: string; studentLevelId?: string; studentClassId?: string;
+  subjects: any[]; types: any[];
+  onSaved: () => void;
+}) {
+  const [subjectId, setSubjectId] = useState('');
+  const [typeId, setTypeId] = useState('');
+  const [score, setScore] = useState(0);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+  const isEditing = !!record && !record.isOfficial;
+
+  useEffect(() => {
+    if (open) {
+      if (record && !record.isOfficial) {
+        setSubjectId(record.subjectId); setTypeId(record.typeId);
+        setScore(record.score); setDate(record.date); setNotes(record.notes);
+      } else {
+        setSubjectId(''); setTypeId(''); setScore(0);
+        setDate(new Date().toISOString().split('T')[0]); setNotes('');
+      }
+    }
+  }, [open, record]);
+
+  const mut = useMutation({
+    mutationFn: (data: any) => isEditing ? markRecordApi.update(record!.id, data) : markRecordApi.create(data),
+    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(isEditing ? 'Updated' : 'Created'); },
+  });
+
+  const handleSave = () => {
+    if (!subjectId || !typeId) { toast.error('Subject and Type are required'); return; }
+    mut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', typeId, score, date, notes, isOfficial: false });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{isEditing ? 'Edit Non-Official Record' : 'Add Non-Official Record'}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Subject *</Label>
+              <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select subject</SelectItem>
+                  {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Type *</Label>
+              <Select value={typeId || 'none'} onValueChange={v => setTypeId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select type</SelectItem>
+                  {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Score</Label><Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} /></div>
+            <div className="space-y-2"><Label>Date</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+          </div>
+          <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={mut.isPending}>{isEditing ? 'Update' : 'Create'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Student Official Dialog ─────────────────────────────────────
+function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentLevelId, studentClassId, subjects, templates, onSaved }: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  record: OfficialMarkRecord | null;
+  studentId: string; studentLevelId?: string; studentClassId?: string;
+  subjects: any[]; templates: any[];
+  onSaved: () => void;
+}) {
+  const [subjectId, setSubjectId] = useState('');
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+  const [existingId, setExistingId] = useState<string | null>(null);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+
+  const template = templates.find((t: any) => t.levelId === studentLevelId);
+
+  useEffect(() => {
+    if (open) {
+      if (record && record.isOfficial) {
+        setSubjectId(record.subjectId);
+        setScores({ ...record.scores });
+        setDate(record.date); setNotes(record.notes);
+        setExistingId(record.id);
+      } else {
+        setSubjectId(''); setScores({}); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setExistingId(null);
+      }
+    }
+  }, [open, record]);
+
+  // Auto-load existing record
+  useEffect(() => {
+    if (subjectId && open && !(record?.isOfficial)) {
+      setLoadingExisting(true);
+      markRecordApi.findOfficialRecord(studentId, subjectId).then(res => {
+        if (res.data) {
+          setScores({ ...res.data.scores }); setDate(res.data.date); setNotes(res.data.notes); setExistingId(res.data.id);
+        } else {
+          setScores({}); setExistingId(null);
+        }
+        setLoadingExisting(false);
+      });
+    }
+  }, [subjectId]);
+
+  const upsertMut = useMutation({
+    mutationFn: (data: any) => markRecordApi.upsertOfficial(data),
+    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(existingId ? 'Updated' : 'Created'); },
+  });
+
+  const handleSave = () => {
+    if (!subjectId) { toast.error('Subject is required'); return; }
+    if (!template) { toast.error('No template for this level'); return; }
+    upsertMut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', templateId: template.id, scores, date, notes, isOfficial: true });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Official Mark Record</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Subject *</Label>
+            <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
+              <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select subject</SelectItem>
+                {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!template && (
+            <p className="text-sm text-destructive">No official template configured for this student's level.</p>
+          )}
+
+          {existingId && <Badge variant="outline" className="text-xs">Editing existing record — values will be updated</Badge>}
+
+          {template && subjectId && (
+            <div className="space-y-2">
+              <Label>{template.name}</Label>
+              {loadingExisting ? (
+                <p className="text-sm text-muted-foreground">Loading...</p>
+              ) : (
+                <div className="space-y-2 rounded-md border p-3">
+                  {template.columns.sort((a: any, b: any) => a.order - b.order).map((col: any) => (
+                    <div key={col.id} className="flex items-center gap-3">
+                      <span className="text-sm flex-1">{col.name} <span className="text-muted-foreground">(max: {col.maxScore})</span></span>
+                      <Input type="number" className="w-24" min={0} max={col.maxScore} value={scores[col.id] ?? ''} onChange={e => setScores(prev => ({ ...prev, [col.id]: Number(e.target.value) }))} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Date</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={upsertMut.isPending}>{existingId ? 'Update' : 'Save'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
