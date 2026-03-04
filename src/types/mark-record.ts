@@ -14,6 +14,7 @@ export interface OfficialTemplateColumn {
 export interface OfficialTemplate {
   id: string;
   name: string;
+  levelId: string; // one template per level
   columns: OfficialTemplateColumn[];
 }
 

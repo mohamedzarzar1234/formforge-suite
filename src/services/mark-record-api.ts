@@ -17,6 +17,7 @@ let markRecordSettings: MarkRecordSettings = {
     {
       id: 'otpl-1',
       name: 'Standard Report Card',
+      levelId: 'lvl-1',
       columns: [
         { id: 'col-1', name: 'Written Exam', maxScore: 40, order: 1 },
         { id: 'col-2', name: 'Oral Exam', maxScore: 20, order: 2 },
@@ -75,6 +76,28 @@ export const markRecordApi = {
     return { data: item, message: item ? 'Success' : 'Not found', success: !!item, statusCode: item ? 200 : 404 };
   },
 
+  // Find existing official record for a student+subject combo
+  findOfficialRecord: async (studentId: string, subjectId: string): Promise<ApiResponse<OfficialMarkRecord | null>> => {
+    await delay();
+    const item = markRecords.find(r => r.isOfficial && r.studentId === studentId && r.subjectId === subjectId) as OfficialMarkRecord | undefined;
+    return { data: item || null, message: 'Success', success: true, statusCode: 200 };
+  },
+
+  // Upsert official record: create if not exists, update if exists
+  upsertOfficial: async (data: Omit<OfficialMarkRecord, 'id' | 'createdAt'>): Promise<ApiResponse<OfficialMarkRecord>> => {
+    await delay();
+    const existing = markRecords.find(r => r.isOfficial && r.studentId === data.studentId && r.subjectId === data.subjectId);
+    if (existing) {
+      const updated = { ...existing, ...data } as OfficialMarkRecord;
+      markRecords = markRecords.map(r => r.id === existing.id ? updated : r);
+      return { data: updated, message: 'Updated', success: true, statusCode: 200 };
+    } else {
+      const newItem = { ...data, id: genId('mr'), createdAt: new Date().toISOString() } as OfficialMarkRecord;
+      markRecords = [...markRecords, newItem];
+      return { data: newItem, message: 'Created', success: true, statusCode: 201 };
+    }
+  },
+
   create: async (data: Omit<MarkRecord, 'id' | 'createdAt'>): Promise<ApiResponse<MarkRecord>> => {
     await delay();
     const newItem = { ...data, id: genId('mr'), createdAt: new Date().toISOString() } as MarkRecord;
@@ -118,4 +141,5 @@ export const markRecordApi = {
 
   getTypes: (): MarkRecordType[] => markRecordSettings.types,
   getTemplates: (): OfficialTemplate[] => markRecordSettings.officialTemplates,
+  getTemplateForLevel: (levelId: string): OfficialTemplate | undefined => markRecordSettings.officialTemplates.find(t => t.levelId === levelId),
 };
