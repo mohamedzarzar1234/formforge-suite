@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { DatePickerField } from '@/components/DatePickerField';
 
 interface Props {
   studentId: string;
@@ -26,6 +27,8 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
   const [filterType, setFilterType] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   const [addNonOfficialOpen, setAddNonOfficialOpen] = useState(false);
   const [addOfficialOpen, setAddOfficialOpen] = useState(false);
@@ -35,8 +38,15 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
   const isOfficialFilter = filterOfficial === 'all' ? null : filterOfficial === 'official';
 
   const { data: recordsRes, isLoading } = useQuery({
-    queryKey: ['mark-records', 'student', studentId, filterOfficial, filterType, filterSubject],
-    queryFn: () => markRecordApi.getAll({ page: 1, limit: 1000, studentId, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, subjectId: filterSubject === 'all' ? undefined : filterSubject }),
+    queryKey: ['mark-records', 'student', studentId, filterOfficial, filterType, filterSubject, filterDateFrom, filterDateTo],
+    queryFn: () => markRecordApi.getAll({
+      page: 1, limit: 1000, studentId,
+      isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter,
+      typeId: filterType === 'all' ? undefined : filterType,
+      subjectId: filterSubject === 'all' ? undefined : filterSubject,
+      dateFrom: filterDateFrom || undefined,
+      dateTo: filterDateTo || undefined,
+    }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
@@ -56,7 +66,10 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
   const getTemplateName = (id: string) => templates.find(t => t.id === id)?.name || id;
 
   const getScoreDisplay = (record: MarkRecord) => {
-    if (!record.isOfficial) return String((record as NonOfficialMarkRecord).score);
+    if (!record.isOfficial) {
+      const nr = record as NonOfficialMarkRecord;
+      return `${nr.score}/${nr.maxScore}`;
+    }
     const official = record as OfficialMarkRecord;
     const tpl = templates.find(t => t.id === official.templateId);
     if (!tpl) return '—';
@@ -77,7 +90,7 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1">
           <div className="space-y-1">
             <Label className="text-xs">Category</Label>
             <Select value={filterOfficial} onValueChange={setFilterOfficial}>
@@ -110,6 +123,14 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
                 {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Date From</Label>
+            <DatePickerField value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Date To</Label>
+            <DatePickerField value={filterDateTo} onChange={setFilterDateTo} placeholder="To" />
           </div>
         </div>
         <div className="flex gap-2 self-end">
@@ -214,6 +235,7 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
   const [subjectId, setSubjectId] = useState('');
   const [typeId, setTypeId] = useState('');
   const [score, setScore] = useState(0);
+  const [maxScore, setMaxScore] = useState(100);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const isEditing = !!record && !record.isOfficial;
@@ -222,9 +244,9 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
     if (open) {
       if (record && !record.isOfficial) {
         setSubjectId(record.subjectId); setTypeId(record.typeId);
-        setScore(record.score); setDate(record.date); setNotes(record.notes);
+        setScore(record.score); setMaxScore(record.maxScore); setDate(record.date); setNotes(record.notes);
       } else {
-        setSubjectId(''); setTypeId(''); setScore(0);
+        setSubjectId(''); setTypeId(''); setScore(0); setMaxScore(100);
         setDate(new Date().toISOString().split('T')[0]); setNotes('');
       }
     }
@@ -237,7 +259,7 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
 
   const handleSave = () => {
     if (!subjectId || !typeId) { toast.error('Subject and Type are required'); return; }
-    mut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', typeId, score, date, notes, isOfficial: false });
+    mut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', typeId, score, maxScore, date, notes, isOfficial: false });
   };
 
   return (
@@ -267,9 +289,10 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2"><Label>Score</Label><Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} /></div>
-            <div className="space-y-2"><Label>Date</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Max Score</Label><Input type="number" value={maxScore} onChange={e => setMaxScore(Number(e.target.value))} /></div>
+            <div className="space-y-2"><Label>Date</Label><DatePickerField value={date} onChange={setDate} placeholder="Pick date" /></div>
           </div>
           <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
         </div>
@@ -312,7 +335,6 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
     }
   }, [open, record]);
 
-  // Auto-load existing record
   useEffect(() => {
     if (subjectId && open && !(record?.isOfficial)) {
       setLoadingExisting(true);
@@ -379,7 +401,7 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2"><Label>Date</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Date</Label><DatePickerField value={date} onChange={setDate} placeholder="Pick date" /></div>
             <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
           </div>
         </div>
