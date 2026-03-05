@@ -29,10 +29,10 @@ let markRecordSettings: MarkRecordSettings = {
 };
 
 let markRecords: MarkRecord[] = [
-  { id: 'mr-1', studentId: 'stu-1', subjectId: 'sub-1', levelId: 'lvl-1', classId: 'cls-1', typeId: 'mrt-1', score: 85, date: '2024-03-15', notes: 'Good recitation', isOfficial: false, createdAt: '2024-03-15T10:00:00Z' },
-  { id: 'mr-2', studentId: 'stu-2', subjectId: 'sub-2', levelId: 'lvl-1', classId: 'cls-2', typeId: 'mrt-2', score: 90, date: '2024-03-16', notes: '', isOfficial: false, createdAt: '2024-03-16T10:00:00Z' },
+  { id: 'mr-1', studentId: 'stu-1', subjectId: 'sub-1', levelId: 'lvl-1', classId: 'cls-1', typeId: 'mrt-1', score: 85, maxScore: 100, date: '2024-03-15', notes: 'Good recitation', isOfficial: false, createdAt: '2024-03-15T10:00:00Z' },
+  { id: 'mr-2', studentId: 'stu-2', subjectId: 'sub-2', levelId: 'lvl-1', classId: 'cls-2', typeId: 'mrt-2', score: 90, maxScore: 100, date: '2024-03-16', notes: '', isOfficial: false, createdAt: '2024-03-16T10:00:00Z' },
   { id: 'mr-3', studentId: 'stu-1', subjectId: 'sub-1', levelId: 'lvl-1', classId: 'cls-1', templateId: 'otpl-1', scores: { 'col-1': 35, 'col-2': 18, 'col-3': 9, 'col-4': 25 }, date: '2024-04-01', notes: 'Semester 1', isOfficial: true, createdAt: '2024-04-01T10:00:00Z' },
-  { id: 'mr-4', studentId: 'stu-3', subjectId: 'sub-3', levelId: 'lvl-2', classId: 'cls-3', typeId: 'mrt-3', score: 75, date: '2024-03-20', notes: 'Needs improvement', isOfficial: false, createdAt: '2024-03-20T10:00:00Z' },
+  { id: 'mr-4', studentId: 'stu-3', subjectId: 'sub-3', levelId: 'lvl-2', classId: 'cls-3', typeId: 'mrt-3', score: 75, maxScore: 100, date: '2024-03-20', notes: 'Needs improvement', isOfficial: false, createdAt: '2024-03-20T10:00:00Z' },
 ];
 
 interface MarkRecordFilters {

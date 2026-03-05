@@ -27,6 +27,7 @@ export interface NonOfficialMarkRecord {
   classId: string;
   typeId: string; // references MarkRecordType.id
   score: number;
+  maxScore: number;
   date: string;
   notes: string;
   isOfficial: false;
