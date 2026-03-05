@@ -146,4 +146,50 @@ export const markRecordApi = {
   getTypes: (): MarkRecordType[] => markRecordSettings.types,
   getTemplates: (): OfficialTemplate[] => markRecordSettings.officialTemplates,
   getTemplateForLevel: (levelId: string): OfficialTemplate | undefined => markRecordSettings.officialTemplates.find(t => t.levelId === levelId),
+
+  // Statistics
+  getOfficialStats: async (filters: { levelId?: string; classId?: string; subjectId?: string; teacherClassSubjects?: { classId: string; subjectIds: string[] }[] }): Promise<ApiResponse<{ completion: { filled: number; total: number; percentage: number }; averages: { columnId: string; columnName: string; average: number; maxScore: number }[] }>> => {
+    await delay();
+    const officialRecords = markRecords.filter(r => r.isOfficial) as OfficialMarkRecord[];
+    let filtered = [...officialRecords];
+    if (filters.levelId) filtered = filtered.filter(r => r.levelId === filters.levelId);
+    if (filters.classId) filtered = filtered.filter(r => r.classId === filters.classId);
+    if (filters.subjectId) filtered = filtered.filter(r => r.subjectId === filters.subjectId);
+    if (filters.teacherClassSubjects) {
+      filtered = filtered.filter(r => filters.teacherClassSubjects!.some(cs => cs.classId === r.classId && cs.subjectIds.includes(r.subjectId)));
+    }
+
+    // Completion: how many cells are filled vs total possible
+    let filledCells = 0;
+    let totalCells = 0;
+    const columnAggregates: Record<string, { sum: number; count: number; name: string; maxScore: number }> = {};
+    for (const rec of filtered) {
+      const tpl = markRecordSettings.officialTemplates.find(t => t.id === rec.templateId);
+      if (!tpl) continue;
+      for (const col of tpl.columns) {
+        totalCells++;
+        if (rec.scores[col.id] !== undefined && rec.scores[col.id] !== null) {
+          filledCells++;
+          if (!columnAggregates[col.id]) columnAggregates[col.id] = { sum: 0, count: 0, name: col.name, maxScore: col.maxScore };
+          columnAggregates[col.id].sum += rec.scores[col.id];
+          columnAggregates[col.id].count++;
+        }
+      }
+    }
+
+    const averages = Object.entries(columnAggregates).map(([columnId, agg]) => ({
+      columnId,
+      columnName: agg.name,
+      average: agg.count > 0 ? Math.round((agg.sum / agg.count) * 100) / 100 : 0,
+      maxScore: agg.maxScore,
+    }));
+
+    return {
+      data: {
+        completion: { filled: filledCells, total: totalCells, percentage: totalCells > 0 ? Math.round((filledCells / totalCells) * 100) : 0 },
+        averages,
+      },
+      message: 'Success', success: true, statusCode: 200,
+    };
+  },
 };
