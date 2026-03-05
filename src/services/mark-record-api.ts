@@ -45,6 +45,8 @@ interface MarkRecordFilters {
   classId?: string;
   subjectId?: string;
   studentId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export const markRecordApi = {
