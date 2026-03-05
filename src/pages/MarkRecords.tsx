@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { markRecordApi } from '@/services/mark-record-api';
-import { studentApi, levelApi, classApi, subjectApi } from '@/services/api';
+import { studentApi, levelApi, classApi, subjectApi, teacherApi } from '@/services/api';
 import type { MarkRecord, NonOfficialMarkRecord, OfficialMarkRecord } from '@/types/mark-record';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,10 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Pencil, Download, Upload } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Plus, Trash2, Pencil, Download, Upload, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 import { exportToExcel } from '@/lib/excel-utils';
+import { DatePickerField } from '@/components/DatePickerField';
 import type { Column } from '@/components/DataTable';
 
 export default function MarkRecords() {
@@ -27,23 +29,37 @@ export default function MarkRecords() {
   const [filterClass, setFilterClass] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
   const [filterStudent, setFilterStudent] = useState('all');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [nonOfficialOpen, setNonOfficialOpen] = useState(false);
   const [officialOpen, setOfficialOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editRecord, setEditRecord] = useState<MarkRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   const isOfficialFilter = filterOfficial === 'all' ? null : filterOfficial === 'official';
 
   const { data: recordsRes, isLoading } = useQuery({
-    queryKey: ['mark-records', page, filterOfficial, filterType, filterLevel, filterClass, filterSubject, filterStudent],
-    queryFn: () => markRecordApi.getAll({ page, limit: 100, isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter, typeId: filterType === 'all' ? undefined : filterType, levelId: filterLevel === 'all' ? undefined : filterLevel, classId: filterClass === 'all' ? undefined : filterClass, subjectId: filterSubject === 'all' ? undefined : filterSubject, studentId: filterStudent === 'all' ? undefined : filterStudent }),
+    queryKey: ['mark-records', page, filterOfficial, filterType, filterLevel, filterClass, filterSubject, filterStudent, filterDateFrom, filterDateTo],
+    queryFn: () => markRecordApi.getAll({
+      page, limit: 100,
+      isOfficial: isOfficialFilter === null ? undefined : isOfficialFilter,
+      typeId: filterType === 'all' ? undefined : filterType,
+      levelId: filterLevel === 'all' ? undefined : filterLevel,
+      classId: filterClass === 'all' ? undefined : filterClass,
+      subjectId: filterSubject === 'all' ? undefined : filterSubject,
+      studentId: filterStudent === 'all' ? undefined : filterStudent,
+      dateFrom: filterDateFrom || undefined,
+      dateTo: filterDateTo || undefined,
+    }),
   });
   const { data: settingsRes } = useQuery({ queryKey: ['mark-record-settings'], queryFn: () => markRecordApi.getSettings() });
   const { data: studentsRes } = useQuery({ queryKey: ['students'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
   const { data: levelsRes } = useQuery({ queryKey: ['levels'], queryFn: () => levelApi.getAll({ page: 1, limit: 1000 }) });
   const { data: classesRes } = useQuery({ queryKey: ['classes'], queryFn: () => classApi.getAll({ page: 1, limit: 1000 }) });
   const { data: subjectsRes } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
+  const { data: teachersRes } = useQuery({ queryKey: ['teachers'], queryFn: () => teacherApi.getAll({ page: 1, limit: 1000 }) });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => markRecordApi.delete(id),
@@ -57,6 +73,7 @@ export default function MarkRecords() {
   const levels = levelsRes?.data || [];
   const classes = classesRes?.data || [];
   const subjects = subjectsRes?.data || [];
+  const teachers = teachersRes?.data || [];
 
   const getStudentName = (id: string) => { const s = students.find(x => x.id === id); return s ? `${s.firstname} ${s.lastname}` : id; };
   const getSubjectName = (id: string) => subjects.find(x => x.id === id)?.name || id;
@@ -66,7 +83,10 @@ export default function MarkRecords() {
   const getTemplateName = (id: string) => templates.find(x => x.id === id)?.name || id;
 
   const getScoreDisplay = (record: MarkRecord) => {
-    if (!record.isOfficial) return String((record as NonOfficialMarkRecord).score);
+    if (!record.isOfficial) {
+      const nr = record as NonOfficialMarkRecord;
+      return `${nr.score}/${nr.maxScore}`;
+    }
     const official = record as OfficialMarkRecord;
     const tpl = templates.find(t => t.id === official.templateId);
     if (!tpl) return '—';
@@ -99,6 +119,7 @@ export default function MarkRecords() {
         classId: student?.classId || '',
         typeId: types.find(t => t.name === row['Type'])?.id || types[0]?.id || '',
         score: Number(row['Score']) || 0,
+        maxScore: Number(row['MaxScore']) || 100,
         date: row['Date'] || new Date().toISOString().split('T')[0],
         notes: row['Notes'] || '',
         isOfficial: false as const,
@@ -129,6 +150,7 @@ export default function MarkRecords() {
           <p className="text-muted-foreground">Manage student grades and scores.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => setShowStats(!showStats)}><BarChart3 className="mr-2 h-4 w-4" />{showStats ? 'Hide Stats' : 'Statistics'}</Button>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-2 h-4 w-4" />Export</Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
           <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setOfficialOpen(true); }}><Plus className="mr-2 h-4 w-4" />Official</Button>
@@ -136,10 +158,20 @@ export default function MarkRecords() {
         </div>
       </div>
 
+      {/* Statistics Panel */}
+      {showStats && (
+        <OfficialStatsPanel
+          levels={levels}
+          classes={classes}
+          subjects={subjects}
+          teachers={teachers}
+        />
+      )}
+
       {/* Filters */}
       <Card>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Category</Label>
               <Select value={filterOfficial} onValueChange={setFilterOfficial}>
@@ -202,6 +234,14 @@ export default function MarkRecords() {
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date From</Label>
+              <DatePickerField value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From date" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date To</Label>
+              <DatePickerField value={filterDateTo} onChange={setFilterDateTo} placeholder="To date" />
             </div>
           </div>
         </CardContent>
@@ -289,9 +329,115 @@ export default function MarkRecords() {
         open={importOpen}
         onOpenChange={setImportOpen}
         onImport={handleImport}
-        expectedColumns={['Student', 'Subject', 'Type', 'Score', 'Date', 'Notes']}
+        expectedColumns={['Student', 'Subject', 'Type', 'Score', 'MaxScore', 'Date', 'Notes']}
       />
     </div>
+  );
+}
+
+// ─── Statistics Panel ────────────────────────────────────────────
+function OfficialStatsPanel({ levels, classes, subjects, teachers }: { levels: any[]; classes: any[]; subjects: any[]; teachers: any[] }) {
+  const [statLevel, setStatLevel] = useState('all');
+  const [statClass, setStatClass] = useState('all');
+  const [statSubject, setStatSubject] = useState('all');
+  const [statTeacher, setStatTeacher] = useState('all');
+
+  const teacherClassSubjects = statTeacher !== 'all'
+    ? teachers.find((t: any) => t.id === statTeacher)?.classAssignments || []
+    : undefined;
+
+  const { data: statsRes } = useQuery({
+    queryKey: ['mark-record-stats', statLevel, statClass, statSubject, statTeacher],
+    queryFn: () => markRecordApi.getOfficialStats({
+      levelId: statLevel === 'all' ? undefined : statLevel,
+      classId: statClass === 'all' ? undefined : statClass,
+      subjectId: statSubject === 'all' ? undefined : statSubject,
+      teacherClassSubjects: teacherClassSubjects,
+    }),
+  });
+
+  const stats = statsRes?.data;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4" />Official Mark Statistics</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Level</Label>
+            <Select value={statLevel} onValueChange={v => { setStatLevel(v); setStatClass('all'); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Class</Label>
+            <Select value={statClass} onValueChange={setStatClass}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes.filter(c => statLevel === 'all' || c.levelId === statLevel).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Subject</Label>
+            <Select value={statSubject} onValueChange={setStatSubject}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Teacher</Label>
+            <Select value={statTeacher} onValueChange={setStatTeacher}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Teachers</SelectItem>
+                {teachers.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.firstname} {t.lastname}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-medium mb-2">Completion Rate</p>
+                <div className="flex items-center gap-3">
+                  <Progress value={stats.completion.percentage} className="flex-1" />
+                  <span className="text-sm font-mono">{stats.completion.percentage}%</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{stats.completion.filled} / {stats.completion.total} cells filled</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-medium mb-2">Column Averages</p>
+                {stats.averages.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No data available</p>
+                ) : (
+                  <div className="space-y-2">
+                    {stats.averages.map(avg => (
+                      <div key={avg.columnId} className="flex items-center justify-between text-sm">
+                        <span>{avg.columnName}</span>
+                        <span className="font-mono">{avg.average} / {avg.maxScore}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -313,6 +459,7 @@ function NonOfficialFormDialog({ open, onOpenChange, record, students, subjects,
   const [subjectId, setSubjectId] = useState('');
   const [typeId, setTypeId] = useState('');
   const [score, setScore] = useState(0);
+  const [maxScore, setMaxScore] = useState(100);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
 
@@ -327,11 +474,12 @@ function NonOfficialFormDialog({ open, onOpenChange, record, students, subjects,
         setSubjectId(record.subjectId);
         setTypeId(record.typeId);
         setScore(record.score);
+        setMaxScore(record.maxScore);
         setDate(record.date);
         setNotes(record.notes);
       } else {
         setLevelId(''); setClassId(''); setStudentId(''); setSubjectId('');
-        setTypeId(''); setScore(0); setDate(new Date().toISOString().split('T')[0]); setNotes('');
+        setTypeId(''); setScore(0); setMaxScore(100); setDate(new Date().toISOString().split('T')[0]); setNotes('');
       }
     }
   }, [open, record]);
@@ -354,7 +502,7 @@ function NonOfficialFormDialog({ open, onOpenChange, record, students, subjects,
       studentId, subjectId,
       levelId: levelId || student?.levelId || '',
       classId: classId || student?.classId || '',
-      typeId, score, date, notes, isOfficial: false,
+      typeId, score, maxScore, date, notes, isOfficial: false,
     });
   };
 
@@ -386,18 +534,17 @@ function NonOfficialFormDialog({ open, onOpenChange, record, students, subjects,
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Student *</Label>
-            <Select value={studentId || 'none'} onValueChange={v => setStudentId(v === 'none' ? '' : v)}>
-              <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Select student</SelectItem>
-                {filteredStudents.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Student *</Label>
+              <Select value={studentId || 'none'} onValueChange={v => setStudentId(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select student</SelectItem>
+                  {filteredStudents.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Subject *</Label>
               <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
@@ -408,26 +555,31 @@ function NonOfficialFormDialog({ open, onOpenChange, record, students, subjects,
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Type *</Label>
-              <Select value={typeId || 'none'} onValueChange={v => setTypeId(v === 'none' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select type</SelectItem>
-                  {types.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>Type *</Label>
+            <Select value={typeId || 'none'} onValueChange={v => setTypeId(v === 'none' ? '' : v)}>
+              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select type</SelectItem>
+                {types.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label>Score</Label>
               <Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} />
             </div>
             <div className="space-y-2">
+              <Label>Max Score</Label>
+              <Input type="number" value={maxScore} onChange={e => setMaxScore(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
               <Label>Date</Label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+              <DatePickerField value={date} onChange={setDate} placeholder="Pick date" />
             </div>
           </div>
 
@@ -485,7 +637,6 @@ function OfficialFormDialog({ open, onOpenChange, record, students, subjects, le
     }
   }, [open, record]);
 
-  // Auto-load existing official record when student+subject selected
   useEffect(() => {
     if (studentId && subjectId && open && !(record?.isOfficial)) {
       setLoadingExisting(true);
@@ -617,7 +768,7 @@ function OfficialFormDialog({ open, onOpenChange, record, students, subjects, le
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Date</Label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+              <DatePickerField value={date} onChange={setDate} placeholder="Pick date" />
             </div>
             <div className="space-y-2">
               <Label>Notes</Label>
