@@ -65,6 +65,8 @@ export const markRecordApi = {
       const q = params.search.toLowerCase();
       items = items.filter(r => r.notes.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
     }
+    if (params.dateFrom) items = items.filter(r => r.date >= params.dateFrom!);
+    if (params.dateTo) items = items.filter(r => r.date <= params.dateTo!);
     const total = items.length;
     const totalPages = Math.ceil(total / params.limit);
     const start = (params.page - 1) * params.limit;
