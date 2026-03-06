@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -89,59 +90,64 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1">
-          <div className="space-y-1">
-            <Label className="text-xs">Category</Label>
-            <Select value={filterOfficial} onValueChange={setFilterOfficial}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="official">Official</SelectItem>
-                <SelectItem value="non-official">Non-Official</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {filterOfficial !== 'official' && (
-            <div className="space-y-1">
-              <Label className="text-xs">Type</Label>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1">
+              <div className="space-y-1">
+                <Label className="text-xs">Category</Label>
+                <Select value={filterOfficial} onValueChange={setFilterOfficial}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="official">Official</SelectItem>
+                    <SelectItem value="non-official">Non-Official</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filterOfficial !== 'official' && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Type</Label>
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label className="text-xs">Subject</Label>
+                <Select value={filterSubject} onValueChange={setFilterSubject}>
+                  <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Date From</Label>
+                <DatePickerField value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Date To</Label>
+                <DatePickerField value={filterDateTo} onChange={setFilterDateTo} placeholder="To" />
+              </div>
             </div>
-          )}
-          <div className="space-y-1">
-            <Label className="text-xs">Subject</Label>
-            <Select value={filterSubject} onValueChange={setFilterSubject}>
-              <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2 self-end">
+              <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setAddOfficialOpen(true); }}>
+                <Plus className="mr-1 h-4 w-4" />Official
+              </Button>
+              <Button size="sm" onClick={() => { setEditRecord(null); setAddNonOfficialOpen(true); }}>
+                <Plus className="mr-1 h-4 w-4" />Non-Official
+              </Button>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Date From</Label>
-            <DatePickerField value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Date To</Label>
-            <DatePickerField value={filterDateTo} onChange={setFilterDateTo} placeholder="To" />
-          </div>
-        </div>
-        <div className="flex gap-2 self-end">
-          <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setAddOfficialOpen(true); }}>
-            <Plus className="mr-1 h-4 w-4" />Official
-          </Button>
-          <Button size="sm" onClick={() => { setEditRecord(null); setAddNonOfficialOpen(true); }}>
-            <Plus className="mr-1 h-4 w-4" />Non-Official
-          </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <div className="rounded-md border">
         <Table>
@@ -257,8 +263,18 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
     onSuccess: () => { onSaved(); onOpenChange(false); toast.success(isEditing ? 'Updated' : 'Created'); },
   });
 
+  const handleScoreChange = (val: number) => {
+    setScore(Math.min(val, maxScore));
+  };
+
+  const handleMaxScoreChange = (val: number) => {
+    setMaxScore(val);
+    if (score > val) setScore(val);
+  };
+
   const handleSave = () => {
     if (!subjectId || !typeId) { toast.error('Subject and Type are required'); return; }
+    if (score > maxScore) { toast.error('Score cannot be greater than max score'); return; }
     mut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', typeId, score, maxScore, date, notes, isOfficial: false });
   };
 
@@ -290,9 +306,18 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2"><Label>Score</Label><Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} /></div>
-            <div className="space-y-2"><Label>Max Score</Label><Input type="number" value={maxScore} onChange={e => setMaxScore(Number(e.target.value))} /></div>
-            <div className="space-y-2"><Label>Date</Label><DatePickerField value={date} onChange={setDate} placeholder="Pick date" /></div>
+            <div className="space-y-2">
+              <Label>Max Score</Label>
+              <Input type="number" min={1} value={maxScore} onChange={e => handleMaxScoreChange(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Score</Label>
+              <Input type="number" min={0} max={maxScore} value={score} onChange={e => handleScoreChange(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <DatePickerField value={date} onChange={setDate} placeholder="Pick date" />
+            </div>
           </div>
           <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
         </div>
@@ -349,6 +374,10 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
     }
   }, [subjectId]);
 
+  const handleScoreChange = (colId: string, val: number, maxScore: number) => {
+    setScores(prev => ({ ...prev, [colId]: Math.min(val, maxScore) }));
+  };
+
   const upsertMut = useMutation({
     mutationFn: (data: any) => markRecordApi.upsertOfficial(data),
     onSuccess: () => { onSaved(); onOpenChange(false); toast.success(existingId ? 'Updated' : 'Created'); },
@@ -357,6 +386,13 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
   const handleSave = () => {
     if (!subjectId) { toast.error('Subject is required'); return; }
     if (!template) { toast.error('No template for this level'); return; }
+    // Validate scores
+    for (const col of template.columns) {
+      if (scores[col.id] !== undefined && scores[col.id] > col.maxScore) {
+        toast.error(`${col.name} score cannot exceed ${col.maxScore}`);
+        return;
+      }
+    }
     upsertMut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', templateId: template.id, scores, date, notes, isOfficial: true });
   };
 
@@ -392,7 +428,7 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
                   {template.columns.sort((a: any, b: any) => a.order - b.order).map((col: any) => (
                     <div key={col.id} className="flex items-center gap-3">
                       <span className="text-sm flex-1">{col.name} <span className="text-muted-foreground">(max: {col.maxScore})</span></span>
-                      <Input type="number" className="w-24" min={0} max={col.maxScore} value={scores[col.id] ?? ''} onChange={e => setScores(prev => ({ ...prev, [col.id]: Number(e.target.value) }))} />
+                      <Input type="number" className="w-24" min={0} max={col.maxScore} value={scores[col.id] ?? ''} onChange={e => handleScoreChange(col.id, Number(e.target.value), col.maxScore)} />
                     </div>
                   ))}
                 </div>
