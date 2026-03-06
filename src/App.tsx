@@ -14,6 +14,7 @@ import ParentDetail from "./pages/ParentDetail";
 import Managers from "./pages/Managers";
 import ManagerDetail from "./pages/ManagerDetail";
 import Classes from "./pages/Classes";
+import ClassDetail from "./pages/ClassDetail";
 import Levels from "./pages/Levels";
 import LevelDetail from "./pages/LevelDetail";
 import Subjects from "./pages/Subjects";
