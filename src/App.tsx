@@ -14,6 +14,7 @@ import ParentDetail from "./pages/ParentDetail";
 import Managers from "./pages/Managers";
 import ManagerDetail from "./pages/ManagerDetail";
 import Classes from "./pages/Classes";
+import ClassDetail from "./pages/ClassDetail";
 import Levels from "./pages/Levels";
 import LevelDetail from "./pages/LevelDetail";
 import Subjects from "./pages/Subjects";
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/managers" element={<Managers />} />
             <Route path="/managers/:id" element={<ManagerDetail />} />
             <Route path="/classes" element={<Classes />} />
+            <Route path="/classes/:id" element={<ClassDetail />} />
             <Route path="/levels" element={<Levels />} />
             <Route path="/levels/:id" element={<LevelDetail />} />
             <Route path="/subjects" element={<Subjects />} />

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Award } from 'lucide-react';
+import { MarkStatsPanel } from '@/components/MarkStatsPanel';
 import { subjectApi, teacherApi, levelApi, classApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +53,7 @@ export default function SubjectDetail() {
           <TabsTrigger value="information">Information</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
           <TabsTrigger value="lessons">Lessons</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Mark Statistics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="information">
@@ -154,6 +156,9 @@ export default function SubjectDetail() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="marks">
+          <MarkStatsPanel fixedSubjectId={id} title={`Mark Statistics for ${subject.name}`} />
         </TabsContent>
       </Tabs>
     </div>
