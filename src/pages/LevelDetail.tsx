@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Award } from 'lucide-react';
+import { MarkStatsPanel } from '@/components/MarkStatsPanel';
 import { levelApi, classApi, subjectApi, teacherApi, studentApi, managerApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
