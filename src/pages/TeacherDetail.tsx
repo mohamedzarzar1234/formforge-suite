@@ -6,6 +6,7 @@ import { DynamicView } from '@/components/DynamicView';
 import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
 import { EntityAttendanceTab } from '@/components/EntityAttendanceTab';
+import { MarkStatsPanel } from '@/components/MarkStatsPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
