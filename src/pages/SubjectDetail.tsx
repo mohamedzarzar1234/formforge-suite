@@ -53,6 +53,7 @@ export default function SubjectDetail() {
           <TabsTrigger value="information">Information</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
           <TabsTrigger value="lessons">Lessons</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Mark Statistics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="information">
