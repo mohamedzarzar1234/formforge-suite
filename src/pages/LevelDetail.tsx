@@ -75,6 +75,7 @@ export default function LevelDetail() {
           <TabsTrigger value="information">Information</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="classes">Classes</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Mark Statistics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="information">
