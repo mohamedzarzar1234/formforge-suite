@@ -72,6 +72,7 @@ export default function TeacherDetail() {
           <TabsTrigger value="info">Information</TabsTrigger>
           <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences</TabsTrigger>
           <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Mark Statistics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
