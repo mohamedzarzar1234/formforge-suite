@@ -157,6 +157,9 @@ export default function SubjectDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="marks">
+          <MarkStatsPanel fixedSubjectId={id} title={`Mark Statistics for ${subject.name}`} />
+        </TabsContent>
       </Tabs>
     </div>
   );

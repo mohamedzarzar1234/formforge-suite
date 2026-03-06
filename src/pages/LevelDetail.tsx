@@ -201,6 +201,9 @@ export default function LevelDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="marks">
+          <MarkStatsPanel fixedLevelId={id} title={`Mark Statistics for ${level.name}`} />
+        </TabsContent>
       </Tabs>
     </div>
   );
