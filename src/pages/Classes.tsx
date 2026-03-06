@@ -49,7 +49,7 @@ export default function ClassesPage() {
         <div><h1 className="text-2xl font-bold tracking-tight">Classes</h1><p className="text-muted-foreground">{res?.total ?? 0} classes</p></div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Class</Button>
       </div>
-      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search classes..." onEdit={c => { setEditing(c); setDialogOpen(true); }} onDelete={c => setDeleteTarget(c)} exportFilename="classes" />
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search classes..." onView={c => navigate(`/classes/${c.id}`)} onEdit={c => { setEditing(c); setDialogOpen(true); }} onDelete={c => setDeleteTarget(c)} exportFilename="classes" />
       <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (o) resetForm(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Edit Class' : 'Add Class'}</DialogTitle></DialogHeader>
