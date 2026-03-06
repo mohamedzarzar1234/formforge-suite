@@ -19,6 +19,7 @@ import { DataTable, type Column } from '@/components/DataTable';
 const schema = z.object({ name: z.string().min(1, 'Required'), section: z.string().min(1, 'Required'), capacity: z.coerce.number().min(1, 'Min 1'), levelId: z.string().min(1, 'Required') });
 
 export default function ClassesPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SchoolClass | null>(null);
