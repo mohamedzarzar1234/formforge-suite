@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { externalExamApi } from '@/services/exam-api';
 import { studentApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
 export default function ExternalExamDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -47,12 +49,12 @@ export default function ExternalExamDetail() {
 
   const updateMut = useMutation({
     mutationFn: () => externalExamApi.update(id!, { name: editName, totalQuestions: editCount, answerKey: editKey }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exam', id] }); toast({ title: 'Updated' }); setEditOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exam', id] }); toast({ title: t('externalExams.examUpdated') }); setEditOpen(false); },
   });
 
   const addScoreMut = useMutation({
     mutationFn: () => externalExamApi.addManualScore(id!, scoreStudentId, scoreValue),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exam-attempts', id] }); toast({ title: 'Score added' }); setScoreOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exam-attempts', id] }); toast({ title: t('externalExams.scoreAdded') }); setScoreOpen(false); },
   });
 
   const getStudentName = (sid: string) => {
@@ -74,7 +76,7 @@ export default function ExternalExamDetail() {
     setScoreOpen(true);
   };
 
-  if (!exam) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
+  if (!exam) return <div className="text-center py-12 text-muted-foreground">{t('common.loading')}</div>;
 
   return (
     <div className="space-y-6">
@@ -83,34 +85,34 @@ export default function ExternalExamDetail() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/external-exams')}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{exam.name}</h1>
-            <p className="text-sm text-muted-foreground">{exam.totalQuestions} questions · Created {new Date(exam.createdAt).toLocaleDateString()}</p>
+            <p className="text-sm text-muted-foreground">{exam.totalQuestions} {t('exams.questions').toLowerCase()} · {t('common.created')} {new Date(exam.createdAt).toLocaleDateString()}</p>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openEdit}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+          <Button variant="outline" onClick={openEdit}><Edit className="h-4 w-4 mr-2" /> {t('common.edit')}</Button>
           <Button variant="destructive" onClick={() => {
-            if (confirm('Delete this external exam?')) {
+            if (confirm(t('externalExams.deleteExternalExam'))) {
               externalExamApi.delete(id!).then(() => { navigate('/external-exams'); });
             }
-          }}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+          }}><Trash2 className="h-4 w-4 mr-2" /> {t('common.delete')}</Button>
         </div>
       </div>
 
       <Tabs defaultValue="info">
         <TabsList>
-          <TabsTrigger value="info"><BookOpen className="h-4 w-4 mr-1" /> Info & Answer Key</TabsTrigger>
-          <TabsTrigger value="records"><Users className="h-4 w-4 mr-1" /> Student Records ({attempts.length})</TabsTrigger>
+          <TabsTrigger value="info"><BookOpen className="h-4 w-4 mr-1" /> {t('externalExams.infoAnswerKey')}</TabsTrigger>
+          <TabsTrigger value="records"><Users className="h-4 w-4 mr-1" /> {t('externalExams.studentRecords')} ({attempts.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info" className="space-y-4 mt-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{exam.totalQuestions}</p><p className="text-sm text-muted-foreground">Questions</p></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length}</p><p className="text-sm text-muted-foreground">Attempts</p></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length > 0 ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length * 10) / 10 : '—'}</p><p className="text-sm text-muted-foreground">Avg Score</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{exam.totalQuestions}</p><p className="text-sm text-muted-foreground">{t('exams.questions')}</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length}</p><p className="text-sm text-muted-foreground">{t('exams.attempts')}</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length > 0 ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length * 10) / 10 : '—'}</p><p className="text-sm text-muted-foreground">{t('exams.avgScore')}</p></CardContent></Card>
           </div>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg">Answer Key</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg">{t('externalExams.answerKey')}</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 gap-2" dir="ltr">
                 {Array.from({ length: exam.totalQuestions }, (_, i) => i + 1).map(qNum => (
@@ -126,23 +128,23 @@ export default function ExternalExamDetail() {
 
         <TabsContent value="records" className="space-y-4 mt-4">
           <div className="flex justify-end">
-            <Button onClick={openAddScore}><Plus className="h-4 w-4 mr-2" /> Add Score</Button>
+            <Button onClick={openAddScore}><Plus className="h-4 w-4 mr-2" /> {t('externalExams.addScore')}</Button>
           </div>
           <Card>
             <CardContent className="pt-6 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Percentage</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>{t('common.student')}</TableHead>
+                    <TableHead>{t('exams.score')}</TableHead>
+                    <TableHead>{t('externalExams.totalQuestions')}</TableHead>
+                    <TableHead>%</TableHead>
+                    <TableHead>{t('common.date')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {attempts.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No records yet</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t('externalExams.noRecords')}</TableCell></TableRow>
                   ) : attempts.map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-medium text-foreground">{getStudentName(a.studentId)}</TableCell>
@@ -166,15 +168,15 @@ export default function ExternalExamDetail() {
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit External Exam</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('externalExams.editExternalExam')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Name</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
+            <div><Label>{t('common.name')}</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
             <div>
-              <Label>Number of Questions</Label>
+              <Label>{t('externalExams.numberOfQuestions')}</Label>
               <Input type="number" min={1} max={200} value={editCount} onChange={e => setEditCount(parseInt(e.target.value) || 1)} />
             </div>
             <div>
-              <Label>Answer Key</Label>
+              <Label>{t('externalExams.answerKey')}</Label>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-2 max-h-[300px] overflow-y-auto" dir="ltr">
                 {Array.from({ length: editCount }, (_, i) => i + 1).map(qNum => (
                   <div key={qNum} className="border rounded-md p-2">
@@ -193,8 +195,8 @@ export default function ExternalExamDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={() => updateMut.mutate()} disabled={updateMut.isPending}>Save</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => updateMut.mutate()} disabled={updateMut.isPending}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -202,26 +204,26 @@ export default function ExternalExamDetail() {
       {/* Add Score Dialog */}
       <Dialog open={scoreOpen} onOpenChange={setScoreOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Student Score</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('externalExams.addStudentScore')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Student *</Label>
+              <Label>{t('common.student')} *</Label>
               <Select value={scoreStudentId} onValueChange={setScoreStudentId}>
-                <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('common.selectStudent')} /></SelectTrigger>
                 <SelectContent>
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Score</Label>
+              <Label>{t('exams.score')}</Label>
               <Input type="number" min={0} max={exam.totalQuestions} value={scoreValue} onChange={e => setScoreValue(parseInt(e.target.value) || 0)} />
-              <p className="text-xs text-muted-foreground mt-1">Out of {exam.totalQuestions} questions</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('externalExams.outOfQuestions', { count: exam.totalQuestions })}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScoreOpen(false)}>Cancel</Button>
-            <Button onClick={() => addScoreMut.mutate()} disabled={addScoreMut.isPending || !scoreStudentId}>Add Score</Button>
+            <Button variant="outline" onClick={() => setScoreOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => addScoreMut.mutate()} disabled={addScoreMut.isPending || !scoreStudentId}>{t('externalExams.addScore')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

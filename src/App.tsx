@@ -32,6 +32,13 @@ import ScanExam from "./pages/ScanExam";
 import ExternalExams from "./pages/ExternalExams";
 import ExternalExamDetail from "./pages/ExternalExamDetail";
 import MarkRecords from "./pages/MarkRecords";
+import BulkOfficialMarks from "./pages/BulkOfficialMarks";
+import NoteTemplates from "./pages/NoteTemplates";
+import NotesPage from "./pages/Notes";
+import PointsPage from "./pages/Points";
+import SurveysPage from "./pages/Surveys";
+import SurveyDetail from "./pages/SurveyDetail";
+import SurveyResponse from "./pages/SurveyResponse";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,8 +60,8 @@ const App = () => (
             <Route path="/parents/:id" element={<ParentDetail />} />
             <Route path="/managers" element={<Managers />} />
             <Route path="/managers/:id" element={<ManagerDetail />} />
-            <Route path="/classes" element={<Classes />} />
             <Route path="/classes/:id" element={<ClassDetail />} />
+            <Route path="/classes" element={<Classes />} />
             <Route path="/levels" element={<Levels />} />
             <Route path="/levels/:id" element={<LevelDetail />} />
             <Route path="/subjects" element={<Subjects />} />
@@ -72,8 +79,15 @@ const App = () => (
             <Route path="/external-exams" element={<ExternalExams />} />
             <Route path="/external-exams/:id" element={<ExternalExamDetail />} />
             <Route path="/mark-records" element={<MarkRecords />} />
+            <Route path="/mark-records/bulk" element={<BulkOfficialMarks />} />
+            <Route path="/note-templates" element={<NoteTemplates />} />
+            <Route path="/notes" element={<NotesPage />} />
+            <Route path="/points" element={<PointsPage />} />
+            <Route path="/surveys" element={<SurveysPage />} />
+            <Route path="/surveys/:id" element={<SurveyDetail />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
+          <Route path="/survey-response/:id" element={<SurveyResponse />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

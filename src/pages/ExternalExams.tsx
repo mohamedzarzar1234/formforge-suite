@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { externalExamApi } from '@/services/exam-api';
 import { studentApi } from '@/services/api';
 import { processAnswerSheet, type OMRResult } from '@/lib/omr-processor';
@@ -27,6 +28,7 @@ const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 type Step = 'list' | 'create' | 'correct' | 'camera' | 'review' | 'result';
 
 export default function ExternalExams() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -35,20 +37,17 @@ export default function ExternalExams() {
   const [selectedExam, setSelectedExam] = useState<ExternalExam | null>(null);
   const [studentId, setStudentId] = useState('');
 
-  // Create form
   const [createName, setCreateName] = useState('');
   const [createCount, setCreateCount] = useState(20);
   const [answerKey, setAnswerKey] = useState<Record<number, string>>({});
   const [createTab, setCreateTab] = useState<'manual' | 'excel'>('manual');
 
-  // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<ExternalExam | null>(null);
   const [editName, setEditName] = useState('');
   const [editCount, setEditCount] = useState(20);
   const [editAnswerKey, setEditAnswerKey] = useState<Record<number, string>>({});
 
-  // Camera / correction
   const [omrResult, setOmrResult] = useState<OMRResult | null>(null);
   const [editedAnswers, setEditedAnswers] = useState<Record<number, string | null>>({});
   const [result, setResult] = useState<ExternalExamAttempt | null>(null);
@@ -76,17 +75,17 @@ export default function ExternalExams() {
     mutationFn: (data: Omit<ExternalExam, 'id' | 'createdAt'>) => externalExamApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['external-exams'] });
-      toast({ title: 'External exam created' });
+      toast({ title: t('externalExams.examCreated') });
       setStep('list');
     },
   });
   const deleteMut = useMutation({
     mutationFn: (id: string) => externalExamApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exams'] }); toast({ title: 'Deleted' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exams'] }); toast({ title: t('common.delete') }); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<ExternalExam> }) => externalExamApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exams'] }); toast({ title: 'Exam updated' }); setEditOpen(false); setEditingExam(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['external-exams'] }); toast({ title: t('externalExams.examUpdated') }); setEditOpen(false); setEditingExam(null); },
   });
   const submitMut = useMutation({
     mutationFn: ({ examId, answers }: { examId: string; answers: Record<number, string | null> }) =>
@@ -94,11 +93,10 @@ export default function ExternalExams() {
     onSuccess: (res) => {
       setResult(res.data);
       setStep('result');
-      toast({ title: `Score: ${res.data.score}/${res.data.totalQuestions}` });
+      toast({ title: `${t('exams.score')}: ${res.data.score}/${res.data.totalQuestions}` });
     },
   });
 
-  // Camera management
   const startCamera = useCallback(async () => {
     setCameraError(null);
     try {
@@ -108,9 +106,9 @@ export default function ExternalExams() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
-      setCameraError('Cannot access camera. Please grant permission.');
+      setCameraError(t('externalExams.cameraError'));
     }
-  }, []);
+  }, [t]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -139,11 +137,11 @@ export default function ExternalExams() {
       setEditedAnswers({ ...result.answers });
       setStep('review');
     } catch {
-      toast({ title: 'Processing failed', variant: 'destructive' });
+      toast({ title: t('externalExams.processingFailed'), variant: 'destructive' });
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedExam, toast]);
+  }, [selectedExam, toast, t]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -159,28 +157,28 @@ export default function ExternalExams() {
       setStep('review');
       URL.revokeObjectURL(img.src);
     } catch {
-      toast({ title: 'Image processing failed', variant: 'destructive' });
+      toast({ title: t('externalExams.imageProcessingFailed'), variant: 'destructive' });
     } finally {
       setIsProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [selectedExam, toast]);
+  }, [selectedExam, toast, t]);
 
   const handleAnswerEdit = (qNum: number, option: string | null) => {
     setEditedAnswers(prev => ({ ...prev, [qNum]: prev[qNum] === option ? null : option }));
   };
 
   const handleSubmitCorrection = () => {
-    if (!studentId) { toast({ title: 'Select a student', variant: 'destructive' }); return; }
+    if (!studentId) { toast({ title: t('externalExams.selectStudentError'), variant: 'destructive' }); return; }
     if (!selectedExam) return;
     submitMut.mutate({ examId: selectedExam.id, answers: editedAnswers });
   };
 
   const handleCreateExam = () => {
-    if (!createName.trim()) { toast({ title: 'Enter exam name', variant: 'destructive' }); return; }
-    if (createCount < 1) { toast({ title: 'At least 1 question', variant: 'destructive' }); return; }
+    if (!createName.trim()) { toast({ title: t('exams.enterExamName'), variant: 'destructive' }); return; }
+    if (createCount < 1) { toast({ title: t('externalExams.atLeastOneQuestion'), variant: 'destructive' }); return; }
     const keyCount = Object.keys(answerKey).length;
-    if (keyCount < createCount) { toast({ title: `Set answers for all ${createCount} questions (${keyCount} set)`, variant: 'destructive' }); return; }
+    if (keyCount < createCount) { toast({ title: t('externalExams.setAnswers') + ` (${keyCount}/${createCount})`, variant: 'destructive' }); return; }
     createMut.mutate({ name: createName, totalQuestions: createCount, answerKey });
   };
 
@@ -199,12 +197,12 @@ export default function ExternalExams() {
       if (maxQ > 0) {
         setAnswerKey(key);
         setCreateCount(maxQ);
-        toast({ title: `Imported ${Object.keys(key).length} answers` });
+        toast({ title: t('externalExams.importedAnswers', { count: Object.keys(key).length }) });
       } else {
-        toast({ title: 'No valid answers found in file', variant: 'destructive' });
+        toast({ title: t('externalExams.noAnswersFound'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Failed to parse file', variant: 'destructive' });
+      toast({ title: t('externalExams.failedParse'), variant: 'destructive' });
     }
     if (excelInputRef.current) excelInputRef.current.value = '';
   };
@@ -243,15 +241,15 @@ export default function ExternalExams() {
     const pct = Math.round((result.score / result.totalQuestions) * 100);
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => setStep('list')}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+        <Button variant="ghost" onClick={() => setStep('list')}><ArrowLeft className="h-4 w-4 mr-2" /> {t('common.back')}</Button>
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Correction Results</CardTitle>
+            <CardTitle className="text-2xl">{t('externalExams.correctionResults')}</CardTitle>
             <CardDescription>{selectedExam.name}</CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <div className="text-5xl font-bold text-primary">{pct}%</div>
-            <p className="text-lg text-foreground">{result.score} / {result.totalQuestions} correct</p>
+            <p className="text-lg text-foreground">{result.score} / {result.totalQuestions} {t('externalExams.correct').toLowerCase()}</p>
             <Progress value={pct} className="h-3" />
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 pt-4" dir="ltr">
               {Array.from({ length: result.totalQuestions }, (_, i) => i + 1).map(qNum => {
@@ -271,7 +269,7 @@ export default function ExternalExams() {
                 );
               })}
             </div>
-            <Button className="mt-4" onClick={() => setStep('list')}>Back to Exams</Button>
+            <Button className="mt-4" onClick={() => setStep('list')}>{t('externalExams.backToExams')}</Button>
           </CardContent>
         </Card>
       </div>
@@ -283,24 +281,24 @@ export default function ExternalExams() {
     const answeredCount = Object.values(editedAnswers).filter(v => v !== null).length;
     return (
       <div className="max-w-4xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => setStep('camera')}><ArrowLeft className="h-4 w-4 mr-2" /> Retake</Button>
+        <Button variant="ghost" onClick={() => setStep('camera')}><ArrowLeft className="h-4 w-4 mr-2" /> {t('externalExams.retake')}</Button>
         <Card>
           <CardHeader>
-            <CardTitle>Review Answers - {selectedExam.name}</CardTitle>
-            <CardDescription>{answeredCount} of {selectedExam.totalQuestions} detected</CardDescription>
+            <CardTitle>{t('externalExams.reviewAnswers')} - {selectedExam.name}</CardTitle>
+            <CardDescription>{answeredCount} {t('common.of')} {selectedExam.totalQuestions} {t('externalExams.detected')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {omrResult && (
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Detection accuracy:</span>
+                <span className="text-sm font-medium">{t('externalExams.detectionAccuracy')}:</span>
                 <Progress value={omrResult.confidence * 100} className="flex-1 h-2" />
                 <span className="text-sm text-muted-foreground">{Math.round(omrResult.confidence * 100)}%</span>
               </div>
             )}
             <div>
-              <Label>Select Student *</Label>
+              <Label>{t('common.selectStudent')} *</Label>
               <Select value={studentId} onValueChange={setStudentId}>
-                <SelectTrigger><SelectValue placeholder="Choose student" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('externalExams.selectStudent')} /></SelectTrigger>
                 <SelectContent>
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
                 </SelectContent>
@@ -329,9 +327,9 @@ export default function ExternalExams() {
               })}
             </div>
             <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={() => setStep('camera')}><RotateCcw className="h-4 w-4 mr-2" /> Retake</Button>
+              <Button variant="outline" onClick={() => setStep('camera')}><RotateCcw className="h-4 w-4 mr-2" /> {t('externalExams.retake')}</Button>
               <Button onClick={handleSubmitCorrection} disabled={submitMut.isPending || !studentId} size="lg">
-                <Send className="h-4 w-4 mr-2" /> Submit & Grade
+                <Send className="h-4 w-4 mr-2" /> {t('externalExams.submitGrade')}
               </Button>
             </div>
           </CardContent>
@@ -344,18 +342,18 @@ export default function ExternalExams() {
   if (step === 'camera' && selectedExam) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => { stopCamera(); setStep('correct'); }}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+        <Button variant="ghost" onClick={() => { stopCamera(); setStep('correct'); }}><ArrowLeft className="h-4 w-4 mr-2" /> {t('common.back')}</Button>
         <Card>
           <CardHeader>
-            <CardTitle>Scan Answer Sheet</CardTitle>
-            <CardDescription>Point camera at the answer sheet</CardDescription>
+            <CardTitle>{t('externalExams.scanAnswerSheet')}</CardTitle>
+            <CardDescription>{t('externalExams.pointCamera')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {cameraError ? (
               <div className="text-center py-8 space-y-3">
                 <XCircle className="h-10 w-10 text-destructive mx-auto" />
                 <p className="text-sm text-destructive">{cameraError}</p>
-                <Button variant="outline" onClick={startCamera}>Retry</Button>
+                <Button variant="outline" onClick={startCamera}>{t('common.retry')}</Button>
               </div>
             ) : (
               <div className="relative bg-black rounded-lg overflow-hidden">
@@ -366,10 +364,10 @@ export default function ExternalExams() {
             <canvas ref={canvasRef} className="hidden" />
             <div className="flex gap-3 justify-center flex-wrap">
               <Button size="lg" onClick={captureAndProcess} disabled={isProcessing || !!cameraError}>
-                {isProcessing ? 'Processing...' : <><Camera className="h-4 w-4 mr-2" /> Capture</>}
+                {isProcessing ? t('common.processing') : <><Camera className="h-4 w-4 mr-2" /> {t('common.capture')}</>}
               </Button>
               <Button variant="outline" size="lg" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>
-                <Upload className="h-4 w-4 mr-2" /> Upload Image
+                <Upload className="h-4 w-4 mr-2" /> {t('externalExams.uploadImage')}
               </Button>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
             </div>
@@ -383,39 +381,38 @@ export default function ExternalExams() {
   if (step === 'correct' && selectedExam) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => setStep('list')}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+        <Button variant="ghost" onClick={() => setStep('list')}><ArrowLeft className="h-4 w-4 mr-2" /> {t('common.back')}</Button>
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>Correct: {selectedExam.name}</CardTitle>
-            <CardDescription>{selectedExam.totalQuestions} questions</CardDescription>
+            <CardTitle>{t('externalExams.correct')}: {selectedExam.name}</CardTitle>
+            <CardDescription>{selectedExam.totalQuestions} {t('exams.questions').toLowerCase()}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="border rounded-lg p-4">
                 <p className="text-2xl font-bold text-primary">{selectedExam.totalQuestions}</p>
-                <p className="text-sm text-muted-foreground">Questions</p>
+                <p className="text-sm text-muted-foreground">{t('exams.questions')}</p>
               </div>
               <div className="border rounded-lg p-4">
                 <p className="text-2xl font-bold text-primary">{Object.keys(selectedExam.answerKey).length}</p>
-                <p className="text-sm text-muted-foreground">Answer Key Set</p>
+                <p className="text-sm text-muted-foreground">{t('externalExams.answerKeySet')}</p>
               </div>
             </div>
             <div className="flex flex-col gap-3">
               <Button size="lg" className="w-full" onClick={() => setStep('camera')}>
-                <Camera className="h-5 w-5 mr-2" /> Open Camera
+                <Camera className="h-5 w-5 mr-2" /> {t('externalExams.openCamera')}
               </Button>
               <Button variant="outline" size="lg" className="w-full" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>
-                <ImageIcon className="h-5 w-5 mr-2" /> Upload Image
+                <ImageIcon className="h-5 w-5 mr-2" /> {t('externalExams.uploadImage')}
               </Button>
               <Button variant="outline" size="lg" className="w-full" onClick={() => {
-                // Manual correction: pre-fill empty answers and go to review
                 const answers: Record<number, string | null> = {};
                 for (let i = 1; i <= selectedExam.totalQuestions; i++) answers[i] = null;
                 setEditedAnswers(answers);
                 setOmrResult(null);
                 setStep('review');
               }}>
-                <Send className="h-5 w-5 mr-2" /> Manual Entry
+                <Send className="h-5 w-5 mr-2" /> {t('externalExams.manualEntry')}
               </Button>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
             </div>
@@ -429,19 +426,19 @@ export default function ExternalExams() {
   if (step === 'create') {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => setStep('list')}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+        <Button variant="ghost" onClick={() => setStep('list')}><ArrowLeft className="h-4 w-4 mr-2" /> {t('common.back')}</Button>
         <Card>
           <CardHeader>
-            <CardTitle>Create External Exam</CardTitle>
-            <CardDescription>Define the answer key for an external exam</CardDescription>
+            <CardTitle>{t('externalExams.createExam')}</CardTitle>
+            <CardDescription>{t('externalExams.defineAnswerKey')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Exam Name *</Label>
+              <Label>{t('exams.examName')} *</Label>
               <Input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="e.g. Math Final Exam" />
             </div>
             <div>
-              <Label>Number of Questions *</Label>
+              <Label>{t('externalExams.numberOfQuestions')} *</Label>
               <Input type="number" min={1} max={200} value={createCount} onChange={e => {
                 const v = parseInt(e.target.value) || 1;
                 setCreateCount(v);
@@ -450,23 +447,23 @@ export default function ExternalExams() {
 
             <Tabs value={createTab} onValueChange={v => setCreateTab(v as any)}>
               <TabsList className="w-full">
-                <TabsTrigger value="manual" className="flex-1">Manual Entry</TabsTrigger>
-                <TabsTrigger value="excel" className="flex-1">Import from Excel</TabsTrigger>
+                <TabsTrigger value="manual" className="flex-1">{t('externalExams.manualEntry')}</TabsTrigger>
+                <TabsTrigger value="excel" className="flex-1">{t('externalExams.importAnswers')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="excel" className="space-y-3 mt-3">
-                <p className="text-sm text-muted-foreground">Upload an Excel file with columns: Question (number), Answer (A/B/C/D)</p>
+                <p className="text-sm text-muted-foreground">{t('externalExams.excelHint')}</p>
                 <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelImport} />
                 <Button variant="outline" onClick={() => excelInputRef.current?.click()}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Select File
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> {t('externalExams.selectFile')}
                 </Button>
                 {Object.keys(answerKey).length > 0 && (
-                  <p className="text-sm text-green-600">{Object.keys(answerKey).length} answers loaded</p>
+                  <p className="text-sm text-green-600">{t('externalExams.answersLoaded', { count: Object.keys(answerKey).length })}</p>
                 )}
               </TabsContent>
 
               <TabsContent value="manual" className="mt-3">
-                <Label>Answer Key</Label>
+                <Label>{t('externalExams.answerKey')}</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-2 max-h-[400px] overflow-y-auto" dir="ltr">
                   {Array.from({ length: createCount }, (_, i) => i + 1).map(qNum => (
                     <div key={qNum} className="border rounded-md p-2">
@@ -482,15 +479,15 @@ export default function ExternalExams() {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">{Object.keys(answerKey).length}/{createCount} answers set</p>
+                <p className="text-xs text-muted-foreground mt-2">{t('externalExams.answersSet', { set: Object.keys(answerKey).length, total: createCount })}</p>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setStep('list')}>Cancel</Button>
+          <Button variant="outline" onClick={() => setStep('list')}>{t('common.cancel')}</Button>
           <Button onClick={handleCreateExam} disabled={createMut.isPending}>
-            {createMut.isPending ? 'Creating...' : 'Create Exam'}
+            {createMut.isPending ? t('externalExams.creating') : t('externalExams.createExam')}
           </Button>
         </div>
       </div>
@@ -502,10 +499,10 @@ export default function ExternalExams() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">External Exams</h1>
-          <p className="text-sm text-muted-foreground">Correct external exams by camera or manual entry</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('externalExams.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('externalExams.correctSubtitle')}</p>
         </div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> New External Exam</Button>
+        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> {t('externalExams.newExternalExam')}</Button>
       </div>
 
       <Card>
@@ -513,26 +510,26 @@ export default function ExternalExams() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Questions</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t('common.name')}</TableHead>
+                <TableHead>{t('exams.questions')}</TableHead>
+                <TableHead>{t('common.created')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
               ) : exams.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No external exams yet. Create one!</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{t('externalExams.noExternalExams')}</TableCell></TableRow>
               ) : exams.map(exam => (
                 <TableRow key={exam.id}>
                   <TableCell className="font-medium">{exam.name}</TableCell>
                   <TableCell><Badge variant="secondary">{exam.totalQuestions}</Badge></TableCell>
                   <TableCell className="text-muted-foreground text-sm">{new Date(exam.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right space-x-1">
-                    <Button variant="ghost" size="icon" onClick={() => navigate(`/external-exams/${exam.id}`)} title="View Details"><Eye className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => openEditExam(exam)} title="Edit"><Edit className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => openCorrect(exam)} title="Correct"><Camera className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => navigate(`/external-exams/${exam.id}`)} title={t('common.view')}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEditExam(exam)} title={t('common.edit')}><Edit className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => openCorrect(exam)} title={t('externalExams.correct')}><Camera className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(exam.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
                 </TableRow>
@@ -546,19 +543,19 @@ export default function ExternalExams() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit External Exam</DialogTitle>
+            <DialogTitle>{t('externalExams.editExternalExam')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Exam Name *</Label>
+              <Label>{t('exams.examName')} *</Label>
               <Input value={editName} onChange={e => setEditName(e.target.value)} />
             </div>
             <div>
-              <Label>Number of Questions *</Label>
+              <Label>{t('externalExams.numberOfQuestions')} *</Label>
               <Input type="number" min={1} max={200} value={editCount} onChange={e => setEditCount(parseInt(e.target.value) || 1)} />
             </div>
             <div>
-              <Label>Answer Key</Label>
+              <Label>{t('externalExams.answerKey')}</Label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-2 max-h-[400px] overflow-y-auto" dir="ltr">
                 {Array.from({ length: editCount }, (_, i) => i + 1).map(qNum => (
                   <div key={qNum} className="border rounded-md p-2">
@@ -574,12 +571,12 @@ export default function ExternalExams() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">{Object.keys(editAnswerKey).filter(k => Number(k) <= editCount).length}/{editCount} answers set</p>
+              <p className="text-xs text-muted-foreground mt-2">{t('externalExams.answersSet', { set: Object.keys(editAnswerKey).filter(k => Number(k) <= editCount).length, total: editCount })}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdateExam} disabled={updateMut.isPending}>Save</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleUpdateExam} disabled={updateMut.isPending}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

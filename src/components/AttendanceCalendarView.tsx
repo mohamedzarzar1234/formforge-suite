@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 import {
   format,
   parseISO,
@@ -42,8 +43,11 @@ interface AttendanceCalendarViewProps {
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function AttendanceCalendarView({ items, type, getEntityName, onEdit, onDelete, showEntity = true,isShowMixed=true }: AttendanceCalendarViewProps) {
+  const { t } = useTranslation();
   const [month, setMonth] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const typeLabel = type === 'absences' ? t('attendance.absences').toLowerCase() : t('attendance.lates').toLowerCase();
 
   const dateMap = useMemo(() => {
     const map = new Map<string, AttendanceItem[]>();
@@ -150,13 +154,13 @@ export function AttendanceCalendarView({ items, type, getEntityName, onEdit, onD
             {/* Legend */}
             <div className="flex gap-4 mt-3 pt-3 border-t border-border">
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-3 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/40" /> Justified
+                <span className="w-3 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/40" /> {t('attendance.justified')}
               </span>
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-3 h-3 rounded-sm bg-destructive/20 border border-destructive/40" /> Unjustified
+                <span className="w-3 h-3 rounded-sm bg-destructive/20 border border-destructive/40" /> {t('attendance.unjustified')}
               </span>
              {isShowMixed && <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-3 h-3 rounded-sm bg-amber-500/20 border border-amber-500/40" /> Mixed
+                <span className="w-3 h-3 rounded-sm bg-amber-500/20 border border-amber-500/40" /> {t('attendance.mixed')}
               </span>}
             </div>
           </CardContent>
@@ -166,15 +170,15 @@ export function AttendanceCalendarView({ items, type, getEntityName, onEdit, onD
         <Card className="lg:w-80 flex-shrink-0">
           <CardContent className="p-4">
             {!selectedDate ? (
-              <p className="text-muted-foreground text-sm py-8 text-center">Click a date to view {type}</p>
+              <p className="text-muted-foreground text-sm py-8 text-center">{t('attendance.clickDateToView', { type: typeLabel })}</p>
             ) : (
               <div className="space-y-3">
                 <h3 className="font-medium text-sm border-b border-border pb-2">
                   {format(selectedDate, 'EEE, MMM d, yyyy')}
-                  <span className="ml-2 text-muted-foreground">({selectedItems.length} {type})</span>
+                  <span className="ml-2 text-muted-foreground">({selectedItems.length} {typeLabel})</span>
                 </h3>
                 {selectedItems.length === 0 ? (
-                  <p className="text-muted-foreground text-sm text-center py-4">No {type} on this date</p>
+                  <p className="text-muted-foreground text-sm text-center py-4">{t('attendance.noOnDate', { type: typeLabel })}</p>
                 ) : (
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
                     {selectedItems.map(item => (
@@ -184,10 +188,10 @@ export function AttendanceCalendarView({ items, type, getEntityName, onEdit, onD
                           {item.session && <p className="text-xs text-muted-foreground">{item.session}</p>}
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <Badge variant={item.isJustified ? 'default' : 'destructive'} className="text-[10px] h-5">
-                              {item.isJustified ? 'Justified' : 'Unjustified'}
+                              {item.isJustified ? t('attendance.justified') : t('attendance.unjustified')}
                             </Badge>
                             {type === 'lates' && item.period && (
-                              <Badge variant="outline" className="text-[10px] h-5">{item.period} min</Badge>
+                              <Badge variant="outline" className="text-[10px] h-5">{item.period} {t('attendance.min')}</Badge>
                             )}
                           </div>
                           {item.reason && <p className="text-xs text-muted-foreground line-clamp-2">{item.reason}</p>}

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { FilterBar } from '@/components/FilterBar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -25,8 +26,10 @@ import { InlineSubjectCreate } from '@/components/InlineCreateDialog';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 export default function TeachersPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,24 +48,24 @@ export default function TeachersPage() {
 
   const fields = tplRes?.data?.teacher?.fields || [];
 
-  const createMut = useMutation({ mutationFn: (d: Partial<Teacher>) => teacherApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers'] }); setDialogOpen(false); toast.success('Teacher created'); } });
-  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => teacherApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers'] }); setDialogOpen(false); toast.success('Teacher updated'); } });
-  const deleteMut = useMutation({ mutationFn: (id: string) => teacherApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers'] }); toast.success('Teacher deleted'); } });
+  const createMut = useMutation({ mutationFn: (d: Partial<Teacher>) => teacherApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers'] }); setDialogOpen(false); toast.success(t('teachers.created')); } });
+  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => teacherApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers'] }); setDialogOpen(false); toast.success(t('teachers.updated')); } });
+  const deleteMut = useMutation({ mutationFn: (id: string) => teacherApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['teachers'] }); toast.success(t('teachers.deleted')); } });
 
   const columns: Column<Teacher>[] = useMemo(() => [
-    { key: 'firstname', label: 'First Name' },
-    { key: 'lastname', label: 'Last Name' },
-    { key: 'subjectIds', label: 'Subjects', render: t => t.subjectIds.map(id => subjectsRes?.data?.find(s => s.id === id)?.name).filter(Boolean).join(', ') || '—' },
-    { key: 'classAssignments' as any, label: 'Classes', render: (t: Teacher) => {
-      const assignments = t.classAssignments || [];
+    { key: 'firstname', label: t('common.firstName') },
+    { key: 'lastname', label: t('common.lastName') },
+    { key: 'subjectIds', label: t('nav.subjects'), render: t2 => t2.subjectIds.map(id => subjectsRes?.data?.find(s => s.id === id)?.name).filter(Boolean).join(', ') || '—' },
+    { key: 'classAssignments' as any, label: t('nav.classes'), render: (t2: Teacher) => {
+      const assignments = t2.classAssignments || [];
       if (assignments.length === 0) return '—';
       return assignments.map(a => {
         const cls = classesRes?.data?.find(c => c.id === a.classId);
         return cls?.name || a.classId;
       }).join(', ');
     }},
-    ...fields.filter(f => f.visible).slice(0, 2).map(f => ({ key: f.name, label: f.label, render: (t: Teacher) => String(t.dynamicFields?.[f.name] ?? '—') })),
-  ], [fields, subjectsRes, classesRes]);
+    ...fields.filter(f => f.visible).slice(0, 2).map(f => ({ key: f.name, label: f.label, render: (t2: Teacher) => String(t2.dynamicFields?.[f.name] ?? '—') })),
+  ], [fields, subjectsRes, classesRes, t]);
 
   const handleImport = (rows: Record<string, string>[]) => {
     let count = 0;
@@ -76,36 +79,32 @@ export default function TeachersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight">Teachers</h1><p className="text-muted-foreground">{res?.total ?? 0} teachers</p></div>
-        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Teacher</Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">{t('teachers.title')}</h1><p className="text-muted-foreground">{t('teachers.count', { count: res?.total ?? 0 })}</p></div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="me-2 h-4 w-4" />{t('teachers.addTeacher')}</Button>
       </div>
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <FilterBar showClear={filterLevel !== 'all' || filterClass !== 'all' || filterSubject !== 'all'} onClear={() => { setFilterLevel('all'); setFilterClass('all'); setFilterSubject('all'); }}>
         <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterClass('all'); }}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Levels" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('common.allLevels')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Levels</SelectItem>
+            <SelectItem value="all">{t('common.allLevels')}</SelectItem>
             {(levelsRes?.data || []).map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterClass} onValueChange={setFilterClass}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Classes" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('common.allClasses')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Classes</SelectItem>
+            <SelectItem value="all">{t('common.allClasses')}</SelectItem>
             {(classesRes?.data || []).filter((c: any) => filterLevel === 'all' || c.levelId === filterLevel).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterSubject} onValueChange={setFilterSubject}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Subjects" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder={t('common.allSubjects')} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Subjects</SelectItem>
+            <SelectItem value="all">{t('common.allSubjects')}</SelectItem>
             {(subjectsRes?.data || []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(filterLevel !== 'all' || filterClass !== 'all' || filterSubject !== 'all') && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterLevel('all'); setFilterClass('all'); setFilterSubject('all'); }}>Clear filters</Button>
-        )}
-      </div>
+      </FilterBar>
       <DataTable data={(res?.data || []).filter((t: Teacher) => {
         const assignedClassIds = (t.classAssignments || []).map(a => a.classId);
         if (filterLevel !== 'all') {
@@ -119,12 +118,12 @@ export default function TeachersPage() {
           if (!t.subjectIds.includes(filterSubject)) return false;
         }
         return true;
-      })} columns={columns} isLoading={isLoading} searchPlaceholder="Search teachers..." onView={t => navigate(`/teachers/${t.id}`)} onEdit={t => { setEditing(t); setDialogOpen(true); }} onDelete={t => setDeleteTarget(t)} exportFilename="teachers" onImportClick={() => setImportOpen(true)} />
+      })} columns={columns} isLoading={isLoading} searchPlaceholder={t('teachers.searchTeachers')} onView={t2 => navigate(`/teachers/${t2.id}`)} onEdit={t2 => { setEditing(t2); setDialogOpen(true); }} onDelete={t2 => setDeleteTarget(t2)} exportFilename="teachers" onImportClick={() => setImportOpen(true)} />
       <TeacherDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} subjects={subjectsRes?.data || []} classes={classesRes?.data || []} levels={levelsRes?.data || []} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={(data: any) => editing ? updateMut.mutate({ id: editing.id, ...data }) : createMut.mutate(data)} />
       <ExcelImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={handleImport} expectedColumns={['First Name', 'Last Name']} />
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete teacher?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {deleteTarget?.firstname} {deleteTarget?.lastname}.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: t('nav.teachers').toLowerCase() })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDesc', { name: `${deleteTarget?.firstname} ${deleteTarget?.lastname}` })}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div>
   );

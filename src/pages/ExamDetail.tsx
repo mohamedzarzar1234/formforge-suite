@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { examApi, attemptApi, lessonApi, unitApi, questionApi } from '@/services/exam-api';
 import { studentApi, levelApi, subjectApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import type { Question, ExamConfig } from '@/types/exam';
 import React from 'react';
 
 export default function ExamDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -82,7 +84,6 @@ export default function ExamDetail() {
     return allLessonsFlat.filter(l => l.levelId === editLevelId && l.subjectId === editSubjectId);
   }, [allLessonsFlat, editLevelId, editSubjectId]);
 
-  // Question pool for edit dialog
   const { data: editPoolRes } = useQuery({
     queryKey: ['edit-questions-pool', editLessonIds],
     queryFn: () => questionApi.getByLessonIds(editLessonIds),
@@ -92,17 +93,17 @@ export default function ExamDetail() {
 
   const generateMut = useMutation({
     mutationFn: (config: ExamConfig) => examApi.generate(config),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exam', id] }); qc.invalidateQueries({ queryKey: ['exams'] }); toast({ title: 'Exam regenerated!' }); setEditOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exam', id] }); qc.invalidateQueries({ queryKey: ['exams'] }); toast({ title: t('exams.examRegenerated') }); setEditOpen(false); },
   });
 
   const updateMut = useMutation({
     mutationFn: () => examApi.update(id!, { name: editName, maxScore: editMaxScore, status: editStatus, levelId: editLevelId, subjectId: editSubjectId, lessonIds: editLessonIds, questionIds: editSelectedQuestions }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exam', id] }); toast({ title: 'Exam updated' }); setEditOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exam', id] }); toast({ title: t('exams.examUpdated') }); setEditOpen(false); },
   });
 
   const addScoreMut = useMutation({
     mutationFn: () => attemptApi.addManual(id!, scoreStudentId, scoreValue),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exam-attempts', id] }); toast({ title: 'Score added' }); setScoreOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exam-attempts', id] }); toast({ title: t('exams.scoreAdded') }); setScoreOpen(false); },
   });
 
   const getStudentName = (sid: string) => {
@@ -144,7 +145,7 @@ export default function ExamDetail() {
     setEditLessonIds(prev => prev.includes(lessonId) ? prev.filter(x => x !== lessonId) : [...prev, lessonId]);
   };
 
-  if (!exam) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
+  if (!exam) return <div className="text-center py-12 text-muted-foreground">{t('common.loading')}</div>;
 
   const levelName = levels.find(l => l.id === exam.levelId)?.name ?? '';
   const subjectName = allSubjects.find(s => s.id === exam.subjectId)?.name ?? '';
@@ -162,57 +163,57 @@ export default function ExamDetail() {
             <div className="flex flex-wrap gap-2 mt-1">
               <Badge variant="outline">{levelName}</Badge>
               <Badge variant="secondary">{subjectName}</Badge>
-              <Badge variant={exam.status === 'published' ? 'default' : 'outline'}>{exam.status}</Badge>
+              <Badge variant={exam.status === 'published' ? 'default' : 'outline'}>{exam.status === 'published' ? t('exams.published') : t('exams.draft')}</Badge>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openEdit}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+          <Button variant="outline" onClick={openEdit}><Edit className="h-4 w-4 mr-2" /> {t('common.edit')}</Button>
           <Button variant="destructive" onClick={() => {
-            if (confirm('Delete this exam?')) {
+            if (confirm(t('exams.deleteExam'))) {
               examApi.delete(id!).then(() => { navigate('/exams'); });
             }
-          }}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+          }}><Trash2 className="h-4 w-4 mr-2" /> {t('common.delete')}</Button>
         </div>
       </div>
 
       <Tabs defaultValue="info">
         <TabsList>
-          <TabsTrigger value="info"><BookOpen className="h-4 w-4 mr-1" /> Info & Questions</TabsTrigger>
-          <TabsTrigger value="records"><Users className="h-4 w-4 mr-1" /> Student Records ({attempts.length})</TabsTrigger>
+          <TabsTrigger value="info"><BookOpen className="h-4 w-4 mr-1" /> {t('exams.infoQuestions')}</TabsTrigger>
+          <TabsTrigger value="records"><Users className="h-4 w-4 mr-1" /> {t('exams.studentRecords')} ({attempts.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info" className="space-y-4 mt-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{questions.length}</p><p className="text-sm text-muted-foreground">Questions</p></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{exam.maxScore}</p><p className="text-sm text-muted-foreground">Max Score</p></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length}</p><p className="text-sm text-muted-foreground">Attempts</p></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length > 0 ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length * 10) / 10 : '—'}</p><p className="text-sm text-muted-foreground">Avg Score</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{questions.length}</p><p className="text-sm text-muted-foreground">{t('exams.questions')}</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{exam.maxScore}</p><p className="text-sm text-muted-foreground">{t('exams.maxScore')}</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length}</p><p className="text-sm text-muted-foreground">{t('exams.attempts')}</p></CardContent></Card>
+            <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold text-primary">{attempts.length > 0 ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length * 10) / 10 : '—'}</p><p className="text-sm text-muted-foreground">{t('exams.avgScore')}</p></CardContent></Card>
           </div>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg">Questions</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg">{t('exams.questions')}</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">#</TableHead>
-                    <TableHead>Question</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Difficulty</TableHead>
-                    <TableHead>Options</TableHead>
-                    <TableHead>Answer</TableHead>
+                    <TableHead>{t('questions.questionText')}</TableHead>
+                    <TableHead>{t('common.type')}</TableHead>
+                    <TableHead>{t('questions.difficulty')}</TableHead>
+                    <TableHead>{t('common.options')}</TableHead>
+                    <TableHead>{t('exams.answer')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {questions.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No questions</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('exams.noQuestions')}</TableCell></TableRow>
                   ) : questions.map((q, i) => (
                     <TableRow key={q.id}>
                       <TableCell className="font-medium">{i + 1}</TableCell>
                       <TableCell className="text-foreground">{q.text}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{q.type}</Badge></TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{q.difficulty}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{q.type === 'true_false' ? t('questions.trueFalse') : t('questions.multipleChoice')}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{t(`questions.${q.difficulty}`)}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{q.options.map(o => o.text).join(' | ')}</TableCell>
                       <TableCell className="font-medium text-primary">{q.options.find(o => o.id === q.correctAnswerId)?.text}</TableCell>
                     </TableRow>
@@ -225,23 +226,23 @@ export default function ExamDetail() {
 
         <TabsContent value="records" className="space-y-4 mt-4">
           <div className="flex justify-end">
-            <Button onClick={openAddScore}><Plus className="h-4 w-4 mr-2" /> Add Score</Button>
+            <Button onClick={openAddScore}><Plus className="h-4 w-4 mr-2" /> {t('exams.addScore')}</Button>
           </div>
           <Card>
             <CardContent className="pt-6 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Percentage</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>{t('common.student')}</TableHead>
+                    <TableHead>{t('exams.score')}</TableHead>
+                    <TableHead>{t('externalExams.totalQuestions')}</TableHead>
+                    <TableHead>%</TableHead>
+                    <TableHead>{t('common.date')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {attempts.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No records yet</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t('exams.noRecords')}</TableCell></TableRow>
                   ) : attempts.map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-medium text-foreground">{getStudentName(a.studentId)}</TableCell>
@@ -262,27 +263,27 @@ export default function ExamDetail() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog - Full form matching exams table */}
+      {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Exam</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('exams.editExam')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Exam Name *</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
+            <div><Label>{t('exams.examName')} *</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Level *</Label>
+                <Label>{t('common.level')} *</Label>
                 <Select value={editLevelId} onValueChange={handleEditLevelChange}>
-                  <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('common.selectLevel')} /></SelectTrigger>
                   <SelectContent>
                     {levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Subject *</Label>
+                <Label>{t('common.subject')} *</Label>
                 <Select value={editSubjectId} onValueChange={handleEditSubjectChange} disabled={!editLevelId}>
-                  <SelectTrigger><SelectValue placeholder={editLevelId ? "Select subject" : "Select level first"} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={editLevelId ? t('common.selectSubjects') : t('exams.selectLevelFirst')} /></SelectTrigger>
                   <SelectContent>
                     {editFilteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
@@ -291,12 +292,12 @@ export default function ExamDetail() {
             </div>
 
             <div>
-              <Label>Select Lessons</Label>
+              <Label>{t('exams.selectLessons')}</Label>
               <div className="border rounded-md p-3 mt-1 max-h-48 overflow-y-auto">
                 {!editSubjectId ? (
-                  <p className="text-sm text-muted-foreground">Select level and subject first</p>
+                  <p className="text-sm text-muted-foreground">{t('exams.selectLevelAndSubject')}</p>
                 ) : editFilteredLessons.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No lessons available</p>
+                  <p className="text-sm text-muted-foreground">{t('exams.noLessonsAvailable')}</p>
                 ) : (
                   <Table>
                     <TableBody>
@@ -352,14 +353,14 @@ export default function ExamDetail() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Max Score</Label><Input type="number" min={1} value={editMaxScore} onChange={e => setEditMaxScore(parseInt(e.target.value) || 100)} /></div>
+              <div><Label>{t('exams.maxScore')}</Label><Input type="number" min={1} value={editMaxScore} onChange={e => setEditMaxScore(parseInt(e.target.value) || 100)} /></div>
               <div>
-                <Label>Status</Label>
+                <Label>{t('common.status')}</Label>
                 <Select value={editStatus} onValueChange={v => setEditStatus(v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
+                    <SelectItem value="draft">{t('exams.draft')}</SelectItem>
+                    <SelectItem value="published">{t('exams.published')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -367,42 +368,42 @@ export default function ExamDetail() {
 
             <Tabs value={editMode} onValueChange={v => setEditMode(v as 'manual' | 'auto')}>
               <TabsList className="w-full">
-                <TabsTrigger value="auto" className="flex-1">Auto Generate</TabsTrigger>
-                <TabsTrigger value="manual" className="flex-1">Manual Select</TabsTrigger>
+                <TabsTrigger value="auto" className="flex-1">{t('exams.autoGenerate')}</TabsTrigger>
+                <TabsTrigger value="manual" className="flex-1">{t('exams.manualSelect')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="auto" className="space-y-3 mt-3">
-                <p className="text-sm text-muted-foreground">Set how many questions per difficulty level</p>
+                <p className="text-sm text-muted-foreground">{t('exams.questionsPerDifficulty')}</p>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label className="text-green-600">Easy</Label><Input type="number" min={0} value={editEasyCount} onChange={e => setEditEasyCount(parseInt(e.target.value) || 0)} /></div>
-                  <div><Label className="text-yellow-600">Medium</Label><Input type="number" min={0} value={editMediumCount} onChange={e => setEditMediumCount(parseInt(e.target.value) || 0)} /></div>
-                  <div><Label className="text-red-600">Hard</Label><Input type="number" min={0} value={editHardCount} onChange={e => setEditHardCount(parseInt(e.target.value) || 0)} /></div>
+                  <div><Label className="text-green-600">{t('questions.easy')}</Label><Input type="number" min={0} value={editEasyCount} onChange={e => setEditEasyCount(parseInt(e.target.value) || 0)} /></div>
+                  <div><Label className="text-yellow-600">{t('questions.medium')}</Label><Input type="number" min={0} value={editMediumCount} onChange={e => setEditMediumCount(parseInt(e.target.value) || 0)} /></div>
+                  <div><Label className="text-red-600">{t('questions.hard')}</Label><Input type="number" min={0} value={editHardCount} onChange={e => setEditHardCount(parseInt(e.target.value) || 0)} /></div>
                 </div>
-                <p className="text-xs text-muted-foreground">Total: {editEasyCount + editMediumCount + editHardCount} questions (from {editQuestionPool.length} available)</p>
+                <p className="text-xs text-muted-foreground">{t('exams.totalFromPool', { total: editEasyCount + editMediumCount + editHardCount, pool: editQuestionPool.length })}</p>
               </TabsContent>
 
               <TabsContent value="manual" className="mt-3">
                 {editLessonIds.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Select lessons first to see available questions</p>
+                  <p className="text-sm text-muted-foreground">{t('exams.selectLessonsFirst')}</p>
                 ) : editQuestionPool.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No questions in selected lessons</p>
+                  <p className="text-sm text-muted-foreground">{t('exams.noQuestionsInLessons')}</p>
                 ) : (
                   <div className="border rounded-md p-3 max-h-60 overflow-y-auto space-y-2">
                     {editQuestionPool.map(q => (
                       <div key={q.id} className="flex items-center gap-2">
                         <Checkbox checked={editSelectedQuestions.includes(q.id)} onCheckedChange={() => setEditSelectedQuestions(prev => prev.includes(q.id) ? prev.filter(x => x !== q.id) : [...prev, q.id])} id={`eq-${q.id}`} />
                         <Label htmlFor={`eq-${q.id}`} className="cursor-pointer text-sm flex-1">{q.text}</Label>
-                        <Badge variant="outline" className="text-xs">{q.difficulty}</Badge>
+                        <Badge variant="outline" className="text-xs">{t(`questions.${q.difficulty}`)}</Badge>
                       </div>
                     ))}
-                    <p className="text-xs text-muted-foreground mt-2">{editSelectedQuestions.length} selected</p>
+                    <p className="text-xs text-muted-foreground mt-2">{t('exams.selected', { count: editSelectedQuestions.length })}</p>
                   </div>
                 )}
               </TabsContent>
             </Tabs>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={() => {
               if (editMode === 'auto') {
                 const config: ExamConfig = {
@@ -420,7 +421,7 @@ export default function ExamDetail() {
               } else {
                 updateMut.mutate();
               }
-            }} disabled={updateMut.isPending || generateMut.isPending}>Save</Button>
+            }} disabled={updateMut.isPending || generateMut.isPending}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -428,26 +429,26 @@ export default function ExamDetail() {
       {/* Add Score Dialog */}
       <Dialog open={scoreOpen} onOpenChange={setScoreOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Student Score</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('exams.addStudentScore')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Student *</Label>
+              <Label>{t('common.student')} *</Label>
               <Select value={scoreStudentId} onValueChange={setScoreStudentId}>
-                <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('common.selectStudent')} /></SelectTrigger>
                 <SelectContent>
                   {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Score</Label>
+              <Label>{t('exams.score')}</Label>
               <Input type="number" min={0} max={questions.length} value={scoreValue} onChange={e => setScoreValue(parseInt(e.target.value) || 0)} />
-              <p className="text-xs text-muted-foreground mt-1">Out of {questions.length} questions</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('exams.outOfQuestions', { count: questions.length })}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScoreOpen(false)}>Cancel</Button>
-            <Button onClick={() => addScoreMut.mutate()} disabled={addScoreMut.isPending || !scoreStudentId}>Add Score</Button>
+            <Button variant="outline" onClick={() => setScoreOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => addScoreMut.mutate()} disabled={addScoreMut.isPending || !scoreStudentId}>{t('exams.addScore')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

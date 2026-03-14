@@ -15,10 +15,12 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DataTable, type Column } from '@/components/DataTable';
+import { useTranslation } from 'react-i18next';
 
 const schema = z.object({ name: z.string().min(1, 'Required'), code: z.string().min(1, 'Required'), description: z.string().optional() });
 
 export default function SubjectsPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -26,11 +28,11 @@ export default function SubjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 
   const { data: res, isLoading } = useQuery({ queryKey: ['subjects'], queryFn: () => subjectApi.getAll({ page: 1, limit: 1000 }) });
-  const createMut = useMutation({ mutationFn: (d: Partial<Subject>) => subjectApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['subjects'] }); setDialogOpen(false); toast.success('Subject created'); } });
-  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => subjectApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['subjects'] }); setDialogOpen(false); toast.success('Subject updated'); } });
-  const deleteMut = useMutation({ mutationFn: (id: string) => subjectApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['subjects'] }); toast.success('Subject deleted'); } });
+  const createMut = useMutation({ mutationFn: (d: Partial<Subject>) => subjectApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['subjects'] }); setDialogOpen(false); toast.success(t('subjects.created')); } });
+  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => subjectApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['subjects'] }); setDialogOpen(false); toast.success(t('subjects.updated')); } });
+  const deleteMut = useMutation({ mutationFn: (id: string) => subjectApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['subjects'] }); toast.success(t('subjects.deleted')); } });
 
-  const columns: Column<Subject>[] = [{ key: 'name', label: 'Name' }, { key: 'code', label: 'Code' }, { key: 'description', label: 'Description' }];
+  const columns: Column<Subject>[] = [{ key: 'name', label: t('common.name') }, { key: 'code', label: t('common.code') }, { key: 'description', label: t('common.description') }];
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: '', code: '', description: '' } });
   const resetForm = () => { form.reset({ name: editing?.name || '', code: editing?.code || '', description: editing?.description || '' }); };
   const handleSubmit = (data: any) => { editing ? updateMut.mutate({ id: editing.id, ...data }) : createMut.mutate(data); };
@@ -38,29 +40,29 @@ export default function SubjectsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight">Subjects</h1><p className="text-muted-foreground">{res?.total ?? 0} subjects</p></div>
-        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Subject</Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">{t('subjects.title')}</h1><p className="text-muted-foreground">{t('subjects.count', { count: res?.total ?? 0 })}</p></div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="me-2 h-4 w-4" />{t('subjects.addSubject')}</Button>
       </div>
-      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search subjects..." onEdit={s => { setEditing(s); setDialogOpen(true); }} onDelete={s => setDeleteTarget(s)} onView={s => navigate(`/subjects/${s.id}`)} exportFilename="subjects" />
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder={t('subjects.searchSubjects')} onEdit={s => { setEditing(s); setDialogOpen(true); }} onDelete={s => setDeleteTarget(s)} onView={s => navigate(`/subjects/${s.id}`)} exportFilename="subjects" />
       <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (o) resetForm(); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? 'Edit Subject' : 'Add Subject'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? t('subjects.editSubject') : t('subjects.addSubject')}</DialogTitle></DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="code" render={({ field }) => (<FormItem><FormLabel>Code *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>{t('common.name')} *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="code" render={({ field }) => (<FormItem><FormLabel>{t('common.code')} *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>{t('common.description')}</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>)} />
               <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? 'Update' : 'Create'}</Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? t('common.update') : t('common.create')}</Button>
               </div>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete subject?</AlertDialogTitle><AlertDialogDescription>Permanently delete {deleteTarget?.name}?</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: t('common.subject') })}</AlertDialogTitle><AlertDialogDescription>{t('common.permanently', { name: deleteTarget?.name })}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div>
   );

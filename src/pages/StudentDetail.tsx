@@ -7,6 +7,10 @@ import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
 import { EntityAttendanceTab } from '@/components/EntityAttendanceTab';
 import { StudentMarkRecordsTab } from '@/components/StudentMarkRecordsTab';
+import { StudentMarkStatsTab } from '@/components/StudentMarkStatsTab';
+import { StudentNotesTab } from '@/components/StudentNotesTab';
+import { StudentPointsTab } from '@/components/StudentPointsTab';
+import { StudentAttendanceStatsTab } from '@/components/StudentAttendanceStatsTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,11 +20,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, UserX, Clock, Pencil, Trash2, Award } from 'lucide-react';
+import { ArrowLeft, UserX, Clock, Pencil, Trash2, Award, BarChart3, StickyNote, Star, TrendingUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function StudentDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -39,15 +45,15 @@ export default function StudentDetail() {
 
   const updateMut = useMutation({
     mutationFn: (data: any) => studentApi.update(id!, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students', id] }); setEditOpen(false); toast.success('Student updated'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students', id] }); setEditOpen(false); toast.success(t('students.updated')); },
   });
   const deleteMut = useMutation({
     mutationFn: () => studentApi.delete(id!),
-    onSuccess: () => { toast.success('Student deleted'); navigate('/students'); },
+    onSuccess: () => { toast.success(t('students.deleted')); navigate('/students'); },
   });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
-  if (!student) return <div className="text-center py-12 text-muted-foreground">Student not found</div>;
+  if (!student) return <div className="text-center py-12 text-muted-foreground">{t('students.notFound')}</div>;
 
   const level = levelsRes?.data?.find(l => l.id === student.levelId);
   const cls = classesRes?.data?.find(c => c.id === student.classId);
@@ -65,46 +71,50 @@ export default function StudentDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/students')}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold truncate">{fullName}</h1>
-          <p className="text-muted-foreground">ID: {student.id}</p>
+          <p className="text-muted-foreground">{t('common.id')}: {student.id}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-2 h-4 w-4" />Edit</Button>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" />Delete</Button>
+          <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="me-2 h-4 w-4" />{t('common.edit')}</Button>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 className="me-2 h-4 w-4" />{t('common.delete')}</Button>
           <QRCodeDisplay entityType="students" entityId={student.id} entityName={fullName} />
         </div>
       </div>
 
       <Tabs defaultValue="info">
-        <TabsList>
-          <TabsTrigger value="info">Information</TabsTrigger>
-          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences</TabsTrigger>
-          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates</TabsTrigger>
-          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Marks</TabsTrigger>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="info">{t('tabs.info')}</TabsTrigger>
+          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />{t('tabs.absences')}</TabsTrigger>
+          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />{t('tabs.lates')}</TabsTrigger>
+          <TabsTrigger value="attendance-stats" className="gap-2"><TrendingUp className="h-4 w-4" />{t('tabs.attendanceStats')}</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />{t('tabs.marks')}</TabsTrigger>
+          <TabsTrigger value="mark-stats" className="gap-2"><BarChart3 className="h-4 w-4" />{t('tabs.markStats')}</TabsTrigger>
+          <TabsTrigger value="notes" className="gap-2"><StickyNote className="h-4 w-4" />{t('tabs.notes')}</TabsTrigger>
+          <TabsTrigger value="points" className="gap-2"><Star className="h-4 w-4" />{t('tabs.points')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader><CardTitle className="text-lg">Basic Information</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{t('common.basicInformation')}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-sm text-muted-foreground">First Name</p><p className="font-medium">{student.firstname}</p></div>
-                  <div><p className="text-sm text-muted-foreground">Last Name</p><p className="font-medium">{student.lastname}</p></div>
-                  <div><p className="text-sm text-muted-foreground">Level</p><p className="font-medium">{level?.name || '—'}</p></div>
-                  <div><p className="text-sm text-muted-foreground">Class</p><p className="font-medium">{cls?.name || '—'}</p></div>
+                  <div><p className="text-sm text-muted-foreground">{t('common.firstName')}</p><p className="font-medium">{student.firstname}</p></div>
+                  <div><p className="text-sm text-muted-foreground">{t('common.lastName')}</p><p className="font-medium">{student.lastname}</p></div>
+                  <div><p className="text-sm text-muted-foreground">{t('common.level')}</p><p className="font-medium">{level?.name || '—'}</p></div>
+                  <div><p className="text-sm text-muted-foreground">{t('students.class')}</p><p className="font-medium">{cls?.name || '—'}</p></div>
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-lg">Parents</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{t('nav.parents')}</CardTitle></CardHeader>
               <CardContent>
-                {studentParents.length === 0 ? <p className="text-muted-foreground">No parents assigned</p> : (
+                {studentParents.length === 0 ? <p className="text-muted-foreground">{t('common.noParentsAssigned')}</p> : (
                   <div className="space-y-2">
                     {studentParents.map(p => (
                       <div key={p.id} className="flex items-center gap-2">
                         <span className="font-medium cursor-pointer hover:text-primary" onClick={() => navigate(`/parents/${p.id}`)}>{p.firstname} {p.lastname}</span>
                         {student.parentRelations?.[p.id] && <Badge variant="outline">{student.parentRelations[p.id]}</Badge>}
-                        {p.id === student.defaultParentId && <Badge variant="secondary">Default</Badge>}
+                        {p.id === student.defaultParentId && <Badge variant="secondary">{t('common.default')}</Badge>}
                       </div>
                     ))}
                   </div>
@@ -112,7 +122,7 @@ export default function StudentDetail() {
               </CardContent>
             </Card>
             <Card className="lg:col-span-2">
-              <CardHeader><CardTitle className="text-lg">Additional Details</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{t('common.additionalDetails')}</CardTitle></CardHeader>
               <CardContent><DynamicView fields={fields} data={student.dynamicFields || {}} /></CardContent>
             </Card>
           </div>
@@ -124,32 +134,43 @@ export default function StudentDetail() {
         <TabsContent value="lates">
           <EntityAttendanceTab entityType="student" entityId={student.id} entityName={fullName} recordType="lates" />
         </TabsContent>
+        <TabsContent value="attendance-stats">
+          <StudentAttendanceStatsTab studentId={student.id} studentName={fullName} />
+        </TabsContent>
         <TabsContent value="marks">
           <StudentMarkRecordsTab studentId={student.id} studentName={fullName} studentLevelId={student.levelId} studentClassId={student.classId} />
         </TabsContent>
+        <TabsContent value="mark-stats">
+          <StudentMarkStatsTab studentId={student.id} studentName={fullName} studentLevelId={student.levelId} />
+        </TabsContent>
+        <TabsContent value="notes">
+          <StudentNotesTab studentId={student.id} studentName={fullName} />
+        </TabsContent>
+        <TabsContent value="points">
+          <StudentPointsTab studentId={student.id} studentName={fullName} />
+        </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Student</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('students.editStudent')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>First Name</Label><Input value={editForm.firstname || ''} onChange={e => setEditForm((f: any) => ({ ...f, firstname: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Last Name</Label><Input value={editForm.lastname || ''} onChange={e => setEditForm((f: any) => ({ ...f, lastname: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>{t('common.firstName')}</Label><Input value={editForm.firstname || ''} onChange={e => setEditForm((f: any) => ({ ...f, firstname: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>{t('common.lastName')}</Label><Input value={editForm.lastname || ''} onChange={e => setEditForm((f: any) => ({ ...f, lastname: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Level</Label>
+                <Label>{t('common.level')}</Label>
                 <Select value={editForm.levelId || ''} onValueChange={v => setEditForm((f: any) => ({ ...f, levelId: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('common.selectLevel')} /></SelectTrigger>
                   <SelectContent>{levelsRes?.data?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Class</Label>
+                <Label>{t('students.class')}</Label>
                 <Select value={editForm.classId || ''} onValueChange={v => setEditForm((f: any) => ({ ...f, classId: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('common.selectClass')} /></SelectTrigger>
                   <SelectContent>{classesRes?.data?.filter(c => !editForm.levelId || c.levelId === editForm.levelId).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -159,17 +180,16 @@ export default function StudentDetail() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={() => updateMut.mutate(editForm)} disabled={updateMut.isPending}>Save</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => updateMut.mutate(editForm)} disabled={updateMut.isPending}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Delete student?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {fullName}. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteMut.mutate()}>Delete</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: t('nav.students').toLowerCase() })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDesc', { name: fullName })} {t('common.deleteConfirmDescAction')}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => deleteMut.mutate()}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

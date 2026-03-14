@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FilterBar } from '@/components/FilterBar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,11 +24,13 @@ import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 import { exportToExcel } from '@/lib/excel-utils';
 import { AttendanceQRScanner } from '@/components/AttendanceQRScanner';
 import { DatePickerField } from '@/components/DatePickerField';
+import { useTranslation } from 'react-i18next';
 import type { TeacherAbsence, TeacherLate, AttendanceFilter } from '@/types/attendance';
 
 const today = () => new Date().toISOString().split('T')[0];
 
 export default function TeacherAttendance() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [tab, setTab] = useState<'absences' | 'lates' | 'stats'>('absences');
   const [filter, setFilter] = useState<AttendanceFilter>({});
@@ -92,10 +95,10 @@ export default function TeacherAttendance() {
 
   const createAbsMut = useMutation({
     mutationFn: (d: Omit<TeacherAbsence, 'id' | 'createdAt'>) => teacherAttendanceApi.createAbsence(d),
-    onSuccess: (res) => { if (!res.success) { toast.error(res.message); return; } invalidate(); setAbsDialog(false); toast.success('Absence added'); },
+    onSuccess: (res) => { if (!res.success) { toast.error(res.message); return; } invalidate(); setAbsDialog(false); toast.success(t('attendance.absenceAdded')); },
   });
-  const updateAbsMut = useMutation({ mutationFn: ({ id, ...d }: { id: string } & Partial<TeacherAbsence>) => teacherAttendanceApi.updateAbsence(id, d), onSuccess: () => { invalidate(); setEditingAbsence(null); toast.success('Updated'); } });
-  const deleteAbsMut = useMutation({ mutationFn: (id: string) => teacherAttendanceApi.deleteAbsence(id), onSuccess: () => { invalidate(); toast.success('Deleted'); } });
+  const updateAbsMut = useMutation({ mutationFn: ({ id, ...d }: { id: string } & Partial<TeacherAbsence>) => teacherAttendanceApi.updateAbsence(id, d), onSuccess: () => { invalidate(); setEditingAbsence(null); toast.success(t('attendance.updated')); } });
+  const deleteAbsMut = useMutation({ mutationFn: (id: string) => teacherAttendanceApi.deleteAbsence(id), onSuccess: () => { invalidate(); toast.success(t('attendance.deleted')); } });
   const bulkAbsMut = useMutation({
     mutationFn: (d: Omit<TeacherAbsence, 'id' | 'createdAt'>[]) => teacherAttendanceApi.createAbsenceBulk(d),
     onSuccess: (res) => { invalidate(); setBulkAbsDialog(false); toast.success(res.message); },
@@ -103,29 +106,29 @@ export default function TeacherAttendance() {
 
   const createLateMut = useMutation({
     mutationFn: (d: Omit<TeacherLate, 'id' | 'createdAt'>) => teacherAttendanceApi.createLate(d),
-    onSuccess: (res) => { if (!res.success) { toast.error(res.message); return; } invalidate(); setLateDialog(false); toast.success('Late added'); },
+    onSuccess: (res) => { if (!res.success) { toast.error(res.message); return; } invalidate(); setLateDialog(false); toast.success(t('attendance.lateAdded')); },
   });
-  const updateLateMut = useMutation({ mutationFn: ({ id, ...d }: { id: string } & Partial<TeacherLate>) => teacherAttendanceApi.updateLate(id, d), onSuccess: () => { invalidate(); setEditingLate(null); toast.success('Updated'); } });
-  const deleteLateMut = useMutation({ mutationFn: (id: string) => teacherAttendanceApi.deleteLate(id), onSuccess: () => { invalidate(); toast.success('Deleted'); } });
+  const updateLateMut = useMutation({ mutationFn: ({ id, ...d }: { id: string } & Partial<TeacherLate>) => teacherAttendanceApi.updateLate(id, d), onSuccess: () => { invalidate(); setEditingLate(null); toast.success(t('attendance.updated')); } });
+  const deleteLateMut = useMutation({ mutationFn: (id: string) => teacherAttendanceApi.deleteLate(id), onSuccess: () => { invalidate(); toast.success(t('attendance.deleted')); } });
   const bulkLateMut = useMutation({
     mutationFn: (d: Omit<TeacherLate, 'id' | 'createdAt'>[]) => teacherAttendanceApi.createLateBulk(d),
     onSuccess: (res) => { invalidate(); setBulkLateDialog(false); toast.success(res.message); },
   });
 
-  const getTeacherName = (id: string) => { const t = teachers.find(x => x.id === id); return t ? `${t.firstname} ${t.lastname}` : id; };
+  const getTeacherName = (id: string) => { const te = teachers.find(x => x.id === id); return te ? `${te.firstname} ${te.lastname}` : id; };
 
   const resetAbsForm = (a?: TeacherAbsence) => { setFormTeacherId(a?.teacherId || ''); setFormSession(a?.session || sessionOptions[0]); setFormDate(a?.date || today()); setFormJustified(a?.isJustified || false); setFormReason(a?.reason || ''); };
   const resetLateForm = (l?: TeacherLate) => { setFormTeacherId(l?.teacherId || ''); setFormSession(l?.session || sessionOptions[0]); setFormDate(l?.date || today()); setFormJustified(l?.isJustified || false); setFormReason(l?.reason || ''); setFormPeriod(l?.period || 10); };
 
   const handleAbsSubmit = () => {
-    if (!formTeacherId) { toast.error('Select a teacher'); return; }
+    if (!formTeacherId) { toast.error(t('common.selectTeacher')); return; }
     const data = { teacherId: formTeacherId, session: formSession, date: formDate, isJustified: formJustified, reason: formJustified ? formReason : undefined };
     if (editingAbsence) updateAbsMut.mutate({ id: editingAbsence.id, ...data });
     else createAbsMut.mutate(data);
   };
 
   const handleLateSubmit = () => {
-    if (!formTeacherId) { toast.error('Select a teacher'); return; }
+    if (!formTeacherId) { toast.error(t('common.selectTeacher')); return; }
     const data = { teacherId: formTeacherId, session: formSession, date: formDate, isJustified: formJustified, reason: formJustified ? formReason : undefined, period: formPeriod };
     if (editingLate) updateLateMut.mutate({ id: editingLate.id, ...data });
     else createLateMut.mutate(data);
@@ -145,13 +148,13 @@ export default function TeacherAttendance() {
 
   const handleImportAbsences = (rows: Record<string, string>[]) => {
     const records = rows.map(r => ({ teacherId: r['Teacher ID'] || r['teacherId'] || '', session: r['Session'] || r['session'] || sessionOptions[0], date: r['Date'] || r['date'] || today(), isJustified: r['Justified']?.toLowerCase() === 'yes' || r['isJustified']?.toLowerCase() === 'true', reason: r['Reason'] || r['reason'] || undefined })).filter(r => r.teacherId);
-    if (!records.length) { toast.error('No valid records'); return; }
+    if (!records.length) { toast.error(t('attendance.noValidRecords')); return; }
     bulkAbsMut.mutate(records);
   };
 
   const handleImportLates = (rows: Record<string, string>[]) => {
     const records = rows.map(r => ({ teacherId: r['Teacher ID'] || r['teacherId'] || '', session: r['Session'] || r['session'] || sessionOptions[0], date: r['Date'] || r['date'] || today(), isJustified: r['Justified']?.toLowerCase() === 'yes' || r['isJustified']?.toLowerCase() === 'true', reason: r['Reason'] || r['reason'] || undefined, period: parseInt(r['Period'] || r['period'] || '10') || 10 })).filter(r => r.teacherId);
-    if (!records.length) { toast.error('No valid records'); return; }
+    if (!records.length) { toast.error(t('attendance.noValidRecords')); return; }
     bulkLateMut.mutate(records);
   };
 
@@ -163,88 +166,79 @@ export default function TeacherAttendance() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-foreground">Teacher Attendance</h1><p className="text-sm text-muted-foreground">Track absences and lates by session</p></div>
+      <div><h1 className="text-2xl font-bold text-foreground">{t('attendance.teacherAttendance')}</h1><p className="text-sm text-muted-foreground">{t('attendance.trackBySession')}</p></div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-3 items-end">
-            {activeView !== 'calendar' && (
-              <>
-                <div className="space-y-1 flex flex-col"><Label className="text-xs">Date From</Label><DatePickerField value={filter.dateFrom || ''} onChange={v => setFilter(f => ({ ...f, dateFrom: v || undefined }))} placeholder="From date" className="w-40" /></div>
-                <div className="space-y-1 flex flex-col"><Label className="text-xs">Date To</Label><DatePickerField value={filter.dateTo || ''} onChange={v => setFilter(f => ({ ...f, dateTo: v || undefined }))} placeholder="To date" className="w-40" /></div>
-              </>
-            )}
-            <div className="space-y-1">
-              <Label className="text-xs">Teacher</Label>
-              <Select value={filter.entityId || 'all'} onValueChange={v => setFilter(f => ({ ...f, entityId: v === 'all' ? undefined : v }))}>
-                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">All Teachers</SelectItem>{teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.firstname} {t.lastname}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Class</Label>
-              <Select value={filter.classId || 'all'} onValueChange={v => setFilter(f => ({ ...f, classId: v === 'all' ? undefined : v }))}>
-                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">All Classes</SelectItem>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Level</Label>
-              <Select value={filter.levelId || 'all'} onValueChange={v => setFilter(f => ({ ...f, levelId: v === 'all' ? undefined : v }))}>
-                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">All Levels</SelectItem>{levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Subject</Label>
-              <Select value={(filter as any).subjectId || 'all'} onValueChange={v => setFilter(f => ({ ...f, subjectId: v === 'all' ? undefined : v } as any))}>
-                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="all">All Subjects</SelectItem>{subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setFilter({})}>Clear</Button>
-            <div className="ml-auto">
-              {tab === 'absences' && <ViewToggle view={absView} onViewChange={setAbsView} />}
-              {tab === 'lates' && <ViewToggle view={lateView} onViewChange={setLateView} />}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <FilterBar showClear={!!(filter.entityId || filter.dateFrom || filter.dateTo || filter.levelId || filter.classId || (filter as any).subjectId)} onClear={() => setFilter({})}>
+        {activeView !== 'calendar' && (
+          <>
+            <div className="space-y-1 flex flex-col"><Label className="text-xs">{t('common.dateFrom')}</Label><DatePickerField value={filter.dateFrom || ''} onChange={v => setFilter(f => ({ ...f, dateFrom: v || undefined }))} placeholder={t('common.dateFrom')} className="w-40" /></div>
+            <div className="space-y-1 flex flex-col"><Label className="text-xs">{t('common.dateTo')}</Label><DatePickerField value={filter.dateTo || ''} onChange={v => setFilter(f => ({ ...f, dateTo: v || undefined }))} placeholder={t('common.dateTo')} className="w-40" /></div>
+          </>
+        )}
+        <div className="space-y-1">
+          <Label className="text-xs">{t('common.teacher')}</Label>
+          <Select value={filter.entityId || 'all'} onValueChange={v => setFilter(f => ({ ...f, entityId: v === 'all' ? undefined : v }))}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">{t('common.allTeachers')}</SelectItem>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">{t('common.class')}</Label>
+          <Select value={filter.classId || 'all'} onValueChange={v => setFilter(f => ({ ...f, classId: v === 'all' ? undefined : v }))}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">{t('common.allClasses')}</SelectItem>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">{t('common.level')}</Label>
+          <Select value={filter.levelId || 'all'} onValueChange={v => setFilter(f => ({ ...f, levelId: v === 'all' ? undefined : v }))}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">{t('common.allLevels')}</SelectItem>{levels.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">{t('common.subject')}</Label>
+          <Select value={(filter as any).subjectId || 'all'} onValueChange={v => setFilter(f => ({ ...f, subjectId: v === 'all' ? undefined : v } as any))}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">{t('common.allSubjects')}</SelectItem>{subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="ml-auto self-end">
+          {tab === 'absences' && <ViewToggle view={absView} onViewChange={setAbsView} />}
+          {tab === 'lates' && <ViewToggle view={lateView} onViewChange={setLateView} />}
+        </div>
+      </FilterBar>
 
       <Tabs value={tab} onValueChange={v => setTab(v as any)}>
         <TabsList>
-          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences ({filteredAbsences.length})</TabsTrigger>
-          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates ({filteredLates.length})</TabsTrigger>
-          <TabsTrigger value="stats" className="gap-2"><BarChart3 className="h-4 w-4" />Statistics</TabsTrigger>
+          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />{t('attendance.absences')} ({filteredAbsences.length})</TabsTrigger>
+          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />{t('attendance.lates')} ({filteredLates.length})</TabsTrigger>
+          <TabsTrigger value="stats" className="gap-2"><BarChart3 className="h-4 w-4" />{t('common.statistics')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="absences" className="space-y-4">
           <div className="flex gap-2 flex-wrap items-center">
-            <Button size="sm" onClick={() => { resetAbsForm(); setAbsDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Absence</Button>
-            <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
-            <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
-            <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, teacherName: getTeacherName(a.teacherId), justified: a.isJustified ? 'Yes' : 'No', reason: a.reason || '' })), [{ key: 'teacherName', label: 'Teacher' }, { key: 'session', label: 'Session' }, { key: 'date', label: 'Date' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'teacher-absences')}><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button size="sm" onClick={() => { resetAbsForm(); setAbsDialog(true); }}><Plus className="me-2 h-4 w-4" />{t('attendance.addAbsence')}</Button>
+            <AttendanceQRScanner entityType="teachers" mode="single" onScanned={handleScanSingleAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="me-2 h-4 w-4" />{t('common.scanAdd')}</Button>} />
+            <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false }]); setBulkAbsDialog(true); }}><ListPlus className="me-2 h-4 w-4" />{t('common.bulkAdd')}</Button>
+            <AttendanceQRScanner entityType="teachers" mode="bulk" onScanned={handleScanBulkAbs} trigger={<Button size="sm" variant="outline"><ScanLine className="me-2 h-4 w-4" />{t('attendance.bulkScan')}</Button>} />
+            <Button size="sm" variant="outline" onClick={() => setImportAbsOpen(true)}><Upload className="me-2 h-4 w-4" />{t('common.import')}</Button>
+            <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredAbsences.map(a => ({ ...a, teacherName: getTeacherName(a.teacherId), justified: a.isJustified ? t('common.yes') : t('common.no'), reason: a.reason || '' })), [{ key: 'teacherName', label: t('common.teacher') }, { key: 'session', label: t('common.session') }, { key: 'date', label: t('common.date') }, { key: 'justified', label: t('common.justified') }, { key: 'reason', label: t('common.reason') }], 'teacher-absences')}><Download className="me-2 h-4 w-4" />{t('common.export')}</Button>
           </div>
           {absLoading ? <Skeleton className="h-48 w-full" /> : absView === 'calendar' ? (
-            <AttendanceCalendarView
-              items={filteredAbsences}
-              type="absences"
-              getEntityName={(item) => getTeacherName(item.teacherId)}
-              onEdit={(item) => { resetAbsForm(item as any); setEditingAbsence(item as any); }}
-              onDelete={(item) => setDeleteTarget({ id: item.id, type: 'absence' })}
-            />
+            <AttendanceCalendarView items={filteredAbsences} type="absences" getEntityName={(item) => getTeacherName(item.teacherId)} onEdit={(item) => { resetAbsForm(item as any); setEditingAbsence(item as any); }} onDelete={(item) => setDeleteTarget({ id: item.id, type: 'absence' })} />
           ) : (
             <div className="rounded-md border overflow-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Teacher</TableHead><TableHead>Session</TableHead><TableHead>Date</TableHead><TableHead>Justified</TableHead><TableHead>Reason</TableHead><TableHead className="w-24">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>{t('common.teacher')}</TableHead><TableHead>{t('common.session')}</TableHead><TableHead>{t('common.date')}</TableHead><TableHead>{t('common.justified')}</TableHead><TableHead>{t('common.reason')}</TableHead><TableHead className="w-24">{t('common.actions')}</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {filteredAbsences.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No absences found</TableCell></TableRow> :
+                  {filteredAbsences.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">{t('attendance.noAbsences')}</TableCell></TableRow> :
                     filteredAbsences.map(a => (
                       <TableRow key={a.id}>
                         <TableCell>{getTeacherName(a.teacherId)}</TableCell>
                         <TableCell>{a.session}</TableCell>
                         <TableCell>{a.date}</TableCell>
-                        <TableCell><Badge variant={a.isJustified ? 'default' : 'destructive'}>{a.isJustified ? 'Yes' : 'No'}</Badge></TableCell>
+                        <TableCell><Badge variant={a.isJustified ? 'default' : 'destructive'}>{a.isJustified ? t('common.yes') : t('common.no')}</Badge></TableCell>
                         <TableCell className="text-muted-foreground text-sm">{a.reason || '—'}</TableCell>
                         <TableCell><div className="flex gap-1"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { resetAbsForm(a); setEditingAbsence(a); }}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget({ id: a.id, type: 'absence' })}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
                       </TableRow>
@@ -257,34 +251,28 @@ export default function TeacherAttendance() {
 
         <TabsContent value="lates" className="space-y-4">
           <div className="flex gap-2 flex-wrap items-center">
-            <Button size="sm" onClick={() => { resetLateForm(); setLateDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Late</Button>
-            <AttendanceQRScanner entityType="teachers" mode="single" onScanned={handleScanSingleLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Scan Add</Button>} />
-            <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false, period: 10 }]); setBulkLateDialog(true); }}><ListPlus className="mr-2 h-4 w-4" />Bulk Add</Button>
-            <AttendanceQRScanner entityType="teachers" mode="bulk" onScanned={handleScanBulkLate} trigger={<Button size="sm" variant="outline"><ScanLine className="mr-2 h-4 w-4" />Bulk Scan</Button>} />
-            <Button size="sm" variant="outline" onClick={() => setImportLateOpen(true)}><Upload className="mr-2 h-4 w-4" />Import</Button>
-            <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredLates.map(l => ({ ...l, teacherName: getTeacherName(l.teacherId), justified: l.isJustified ? 'Yes' : 'No', periodStr: `${l.period} min`, reason: l.reason || '' })), [{ key: 'teacherName', label: 'Teacher' }, { key: 'session', label: 'Session' }, { key: 'date', label: 'Date' }, { key: 'periodStr', label: 'Period' }, { key: 'justified', label: 'Justified' }, { key: 'reason', label: 'Reason' }], 'teacher-lates')}><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button size="sm" onClick={() => { resetLateForm(); setLateDialog(true); }}><Plus className="me-2 h-4 w-4" />{t('attendance.addLate')}</Button>
+            <AttendanceQRScanner entityType="teachers" mode="single" onScanned={handleScanSingleLate} trigger={<Button size="sm" variant="outline"><ScanLine className="me-2 h-4 w-4" />{t('common.scanAdd')}</Button>} />
+            <Button size="sm" variant="outline" onClick={() => { setBulkRows([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false, period: 10 }]); setBulkLateDialog(true); }}><ListPlus className="me-2 h-4 w-4" />{t('common.bulkAdd')}</Button>
+            <AttendanceQRScanner entityType="teachers" mode="bulk" onScanned={handleScanBulkLate} trigger={<Button size="sm" variant="outline"><ScanLine className="me-2 h-4 w-4" />{t('attendance.bulkScan')}</Button>} />
+            <Button size="sm" variant="outline" onClick={() => setImportLateOpen(true)}><Upload className="me-2 h-4 w-4" />{t('common.import')}</Button>
+            <Button size="sm" variant="outline" onClick={() => exportToExcel(filteredLates.map(l => ({ ...l, teacherName: getTeacherName(l.teacherId), justified: l.isJustified ? t('common.yes') : t('common.no'), periodStr: `${l.period} ${t('attendance.min')}`, reason: l.reason || '' })), [{ key: 'teacherName', label: t('common.teacher') }, { key: 'session', label: t('common.session') }, { key: 'date', label: t('common.date') }, { key: 'periodStr', label: t('common.period') }, { key: 'justified', label: t('common.justified') }, { key: 'reason', label: t('common.reason') }], 'teacher-lates')}><Download className="me-2 h-4 w-4" />{t('common.export')}</Button>
           </div>
           {lateLoading ? <Skeleton className="h-48 w-full" /> : lateView === 'calendar' ? (
-            <AttendanceCalendarView
-              items={filteredLates}
-              type="lates"
-              getEntityName={(item) => getTeacherName(item.teacherId)}
-              onEdit={(item) => { resetLateForm(item as any); setEditingLate(item as any); }}
-              onDelete={(item) => setDeleteTarget({ id: item.id, type: 'late' })}
-            />
+            <AttendanceCalendarView items={filteredLates} type="lates" getEntityName={(item) => getTeacherName(item.teacherId)} onEdit={(item) => { resetLateForm(item as any); setEditingLate(item as any); }} onDelete={(item) => setDeleteTarget({ id: item.id, type: 'late' })} />
           ) : (
             <div className="rounded-md border overflow-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Teacher</TableHead><TableHead>Session</TableHead><TableHead>Date</TableHead><TableHead>Period</TableHead><TableHead>Justified</TableHead><TableHead>Reason</TableHead><TableHead className="w-24">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>{t('common.teacher')}</TableHead><TableHead>{t('common.session')}</TableHead><TableHead>{t('common.date')}</TableHead><TableHead>{t('common.period')}</TableHead><TableHead>{t('common.justified')}</TableHead><TableHead>{t('common.reason')}</TableHead><TableHead className="w-24">{t('common.actions')}</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {filteredLates.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No lates found</TableCell></TableRow> :
+                  {filteredLates.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{t('attendance.noLates')}</TableCell></TableRow> :
                     filteredLates.map(l => (
                       <TableRow key={l.id}>
                         <TableCell>{getTeacherName(l.teacherId)}</TableCell>
                         <TableCell>{l.session}</TableCell>
                         <TableCell>{l.date}</TableCell>
-                        <TableCell>{l.period} min</TableCell>
-                        <TableCell><Badge variant={l.isJustified ? 'default' : 'destructive'}>{l.isJustified ? 'Yes' : 'No'}</Badge></TableCell>
+                        <TableCell>{l.period} {t('attendance.min')}</TableCell>
+                        <TableCell><Badge variant={l.isJustified ? 'default' : 'destructive'}>{l.isJustified ? t('common.yes') : t('common.no')}</Badge></TableCell>
                         <TableCell className="text-muted-foreground text-sm">{l.reason || '—'}</TableCell>
                         <TableCell><div className="flex gap-1"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { resetLateForm(l); setEditingLate(l); }}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget({ id: l.id, type: 'late' })}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
                       </TableRow>
@@ -298,91 +286,87 @@ export default function TeacherAttendance() {
         <TabsContent value="stats">
           {stats ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Absences</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.totalAbsences}</p><p className="text-xs text-muted-foreground">{stats.justifiedAbsences} justified · {stats.unjustifiedAbsences} unjustified</p></CardContent></Card>
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Lates</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.totalLates}</p><p className="text-xs text-muted-foreground">{stats.justifiedLates} justified · {stats.unjustifiedLates} unjustified</p></CardContent></Card>
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Avg Late Period</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.averageLatePeriod} min</p></CardContent></Card>
-              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Justification Rate</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.totalAbsences + stats.totalLates > 0 ? Math.round(((stats.justifiedAbsences + stats.justifiedLates) / (stats.totalAbsences + stats.totalLates)) * 100) : 0}%</p></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{t('attendance.totalAbsences')}</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.totalAbsences}</p><p className="text-xs text-muted-foreground">{stats.justifiedAbsences} {t('attendance.justified').toLowerCase()} · {stats.unjustifiedAbsences} {t('attendance.unjustified').toLowerCase()}</p></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{t('attendance.totalLates')}</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.totalLates}</p><p className="text-xs text-muted-foreground">{stats.justifiedLates} {t('attendance.justified').toLowerCase()} · {stats.unjustifiedLates} {t('attendance.unjustified').toLowerCase()}</p></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{t('attendance.avgLatePeriod')}</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.averageLatePeriod} {t('attendance.min')}</p></CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{t('attendance.justificationRate')}</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{stats.totalAbsences + stats.totalLates > 0 ? Math.round(((stats.justifiedAbsences + stats.justifiedLates) / (stats.totalAbsences + stats.totalLates)) * 100) : 0}%</p></CardContent></Card>
             </div>
           ) : <Skeleton className="h-32 w-full" />}
         </TabsContent>
       </Tabs>
 
-      {/* Create/Edit Absence Dialog */}
       <Dialog open={absDialog || !!editingAbsence} onOpenChange={o => { if (!o) { setAbsDialog(false); setEditingAbsence(null); } }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editingAbsence ? 'Edit Absence' : 'Add Absence'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingAbsence ? t('attendance.editAbsence') : t('attendance.addAbsence')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Teacher</Label><Select value={formTeacherId} onValueChange={setFormTeacherId}><SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger><SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.firstname} {t.lastname}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Session</Label><Select value={formSession} onValueChange={setFormSession}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Date</Label><DatePickerField value={formDate} onChange={setFormDate} /></div>
-            <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>Justified</Label></div>
-            {formJustified && <div className="space-y-2"><Label>Reason</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Enter justification reason..." /></div>}
+            <div className="space-y-2"><Label>{t('common.teacher')}</Label><Select value={formTeacherId} onValueChange={setFormTeacherId}><SelectTrigger><SelectValue placeholder={t('common.selectTeacher')} /></SelectTrigger><SelectContent>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>{t('common.session')}</Label><Select value={formSession} onValueChange={setFormSession}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>{t('common.date')}</Label><DatePickerField value={formDate} onChange={setFormDate} /></div>
+            <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>{t('common.justified')}</Label></div>
+            {formJustified && <div className="space-y-2"><Label>{t('common.reason')}</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder={t('attendance.enterReason')} /></div>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => { setAbsDialog(false); setEditingAbsence(null); }}>Cancel</Button><Button onClick={handleAbsSubmit}>{editingAbsence ? 'Update' : 'Add'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => { setAbsDialog(false); setEditingAbsence(null); }}>{t('common.cancel')}</Button><Button onClick={handleAbsSubmit}>{editingAbsence ? t('common.update') : t('common.add')}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Create/Edit Late Dialog */}
       <Dialog open={lateDialog || !!editingLate} onOpenChange={o => { if (!o) { setLateDialog(false); setEditingLate(null); } }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editingLate ? 'Edit Late' : 'Add Late'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingLate ? t('attendance.editLate') : t('attendance.addLate')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Teacher</Label><Select value={formTeacherId} onValueChange={setFormTeacherId}><SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger><SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.firstname} {t.lastname}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Session</Label><Select value={formSession} onValueChange={setFormSession}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Date</Label><DatePickerField value={formDate} onChange={setFormDate} /></div>
-            <div className="space-y-2"><Label>Period of Late (minutes)</Label><Input type="number" min={1} value={formPeriod} onChange={e => setFormPeriod(parseInt(e.target.value) || 0)} /></div>
-            <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>Justified</Label></div>
-            {formJustified && <div className="space-y-2"><Label>Reason</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder="Enter justification reason..." /></div>}
+            <div className="space-y-2"><Label>{t('common.teacher')}</Label><Select value={formTeacherId} onValueChange={setFormTeacherId}><SelectTrigger><SelectValue placeholder={t('common.selectTeacher')} /></SelectTrigger><SelectContent>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>{t('common.session')}</Label><Select value={formSession} onValueChange={setFormSession}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>{t('common.date')}</Label><DatePickerField value={formDate} onChange={setFormDate} /></div>
+            <div className="space-y-2"><Label>{t('attendance.periodOfLate')}</Label><Input type="number" min={1} value={formPeriod} onChange={e => setFormPeriod(parseInt(e.target.value) || 0)} /></div>
+            <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>{t('common.justified')}</Label></div>
+            {formJustified && <div className="space-y-2"><Label>{t('common.reason')}</Label><Textarea value={formReason} onChange={e => setFormReason(e.target.value)} placeholder={t('attendance.enterReason')} /></div>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => { setLateDialog(false); setEditingLate(null); }}>Cancel</Button><Button onClick={handleLateSubmit}>{editingLate ? 'Update' : 'Add'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => { setLateDialog(false); setEditingLate(null); }}>{t('common.cancel')}</Button><Button onClick={handleLateSubmit}>{editingLate ? t('common.update') : t('common.add')}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Absence Dialog */}
       <Dialog open={bulkAbsDialog} onOpenChange={setBulkAbsDialog}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Bulk Add Absences</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('attendance.bulkAddAbsences')}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             {bulkRows.map((row, idx) => (
               <div key={idx} className="flex gap-2 items-end flex-wrap border-b border-border pb-2">
-                <div className="flex-1 min-w-[140px] space-y-1"><Label className="text-xs">Teacher</Label><Select value={row.teacherId} onValueChange={v => updateBulkRow(idx, 'teacherId', v)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.firstname} {t.lastname}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1"><Label className="text-xs">Session</Label><Select value={row.session} onValueChange={v => updateBulkRow(idx, 'session', v)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1"><Label className="text-xs">Date</Label><DatePickerField value={row.date} onChange={v => updateBulkRow(idx, 'date', v)} className="w-36" /></div>
+                <div className="flex-1 min-w-[140px] space-y-1"><Label className="text-xs">{t('common.teacher')}</Label><Select value={row.teacherId} onValueChange={v => updateBulkRow(idx, 'teacherId', v)}><SelectTrigger><SelectValue placeholder={t('common.selectTeacher')} /></SelectTrigger><SelectContent>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1"><Label className="text-xs">{t('common.session')}</Label><Select value={row.session} onValueChange={v => updateBulkRow(idx, 'session', v)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1"><Label className="text-xs">{t('common.date')}</Label><DatePickerField value={row.date} onChange={v => updateBulkRow(idx, 'date', v)} className="w-36" /></div>
                 <div className="flex items-center gap-1 pb-1"><Switch checked={row.isJustified} onCheckedChange={v => { updateBulkRow(idx, 'isJustified', v); if (!v) updateBulkRow(idx, 'reason', ''); }} /><Label className="text-xs">J</Label></div>
-                {row.isJustified && <div className="w-full space-y-1"><Label className="text-xs">Reason</Label><Input value={row.reason || ''} onChange={e => updateBulkRow(idx, 'reason', e.target.value)} placeholder="Reason..." /></div>}
+                {row.isJustified && <div className="w-full space-y-1"><Label className="text-xs">{t('common.reason')}</Label><Input value={row.reason || ''} onChange={e => updateBulkRow(idx, 'reason', e.target.value)} placeholder={t('common.reason')} /></div>}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeBulkRow(idx)} disabled={bulkRows.length === 1}><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={addBulkRow}><Plus className="mr-2 h-4 w-4" />Add Row</Button>
+            <Button variant="outline" size="sm" onClick={addBulkRow}><Plus className="me-2 h-4 w-4" />{t('common.addRow')}</Button>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setBulkAbsDialog(false)}>Cancel</Button><Button onClick={() => { const valid = bulkRows.filter(r => r.teacherId); if (!valid.length) { toast.error('Add at least one valid row'); return; } bulkAbsMut.mutate(valid.map(r => ({ teacherId: r.teacherId, session: r.session, date: r.date, isJustified: r.isJustified, reason: r.isJustified ? r.reason : undefined }))); }}>Add {bulkRows.filter(r => r.teacherId).length} Absences</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setBulkAbsDialog(false)}>{t('common.cancel')}</Button><Button onClick={() => { const valid = bulkRows.filter(r => r.teacherId); if (!valid.length) { toast.error(t('attendance.addValidRow')); return; } bulkAbsMut.mutate(valid.map(r => ({ teacherId: r.teacherId, session: r.session, date: r.date, isJustified: r.isJustified, reason: r.isJustified ? r.reason : undefined }))); }}>{t('attendance.addCountAbsences', { count: bulkRows.filter(r => r.teacherId).length })}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Late Dialog */}
       <Dialog open={bulkLateDialog} onOpenChange={setBulkLateDialog}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Bulk Add Lates</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('attendance.bulkAddLates')}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             {bulkRows.map((row, idx) => (
               <div key={idx} className="flex gap-2 items-end flex-wrap border-b border-border pb-2">
-                <div className="flex-1 min-w-[140px] space-y-1"><Label className="text-xs">Teacher</Label><Select value={row.teacherId} onValueChange={v => updateBulkRow(idx, 'teacherId', v)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.firstname} {t.lastname}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1"><Label className="text-xs">Session</Label><Select value={row.session} onValueChange={v => updateBulkRow(idx, 'session', v)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1"><Label className="text-xs">Date</Label><DatePickerField value={row.date} onChange={v => updateBulkRow(idx, 'date', v)} className="w-36" /></div>
-                <div className="space-y-1"><Label className="text-xs">Min</Label><Input type="number" min={1} value={row.period ?? 10} onChange={e => updateBulkRow(idx, 'period', parseInt(e.target.value) || 0)} className="w-20" /></div>
+                <div className="flex-1 min-w-[140px] space-y-1"><Label className="text-xs">{t('common.teacher')}</Label><Select value={row.teacherId} onValueChange={v => updateBulkRow(idx, 'teacherId', v)}><SelectTrigger><SelectValue placeholder={t('common.selectTeacher')} /></SelectTrigger><SelectContent>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1"><Label className="text-xs">{t('common.session')}</Label><Select value={row.session} onValueChange={v => updateBulkRow(idx, 'session', v)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1"><Label className="text-xs">{t('common.date')}</Label><DatePickerField value={row.date} onChange={v => updateBulkRow(idx, 'date', v)} className="w-36" /></div>
+                <div className="space-y-1"><Label className="text-xs">{t('attendance.min')}</Label><Input type="number" min={1} value={row.period ?? 10} onChange={e => updateBulkRow(idx, 'period', parseInt(e.target.value) || 0)} className="w-20" /></div>
                 <div className="flex items-center gap-1 pb-1"><Switch checked={row.isJustified} onCheckedChange={v => { updateBulkRow(idx, 'isJustified', v); if (!v) updateBulkRow(idx, 'reason', ''); }} /><Label className="text-xs">J</Label></div>
-                {row.isJustified && <div className="w-full space-y-1"><Label className="text-xs">Reason</Label><Input value={row.reason || ''} onChange={e => updateBulkRow(idx, 'reason', e.target.value)} placeholder="Reason..." /></div>}
+                {row.isJustified && <div className="w-full space-y-1"><Label className="text-xs">{t('common.reason')}</Label><Input value={row.reason || ''} onChange={e => updateBulkRow(idx, 'reason', e.target.value)} placeholder={t('common.reason')} /></div>}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeBulkRow(idx)} disabled={bulkRows.length === 1}><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={addBulkRow}><Plus className="mr-2 h-4 w-4" />Add Row</Button>
+            <Button variant="outline" size="sm" onClick={addBulkRow}><Plus className="me-2 h-4 w-4" />{t('common.addRow')}</Button>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setBulkLateDialog(false)}>Cancel</Button><Button onClick={() => { const valid = bulkRows.filter(r => r.teacherId); if (!valid.length) { toast.error('Add at least one valid row'); return; } bulkLateMut.mutate(valid.map(r => ({ teacherId: r.teacherId, session: r.session, date: r.date, isJustified: r.isJustified, reason: r.isJustified ? r.reason : undefined, period: r.period ?? 10 }))); }}>Add {bulkRows.filter(r => r.teacherId).length} Lates</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setBulkLateDialog(false)}>{t('common.cancel')}</Button><Button onClick={() => { const valid = bulkRows.filter(r => r.teacherId); if (!valid.length) { toast.error(t('attendance.addValidRow')); return; } bulkLateMut.mutate(valid.map(r => ({ teacherId: r.teacherId, session: r.session, date: r.date, isJustified: r.isJustified, reason: r.isJustified ? r.reason : undefined, period: r.period ?? 10 }))); }}>{t('attendance.addCountLates', { count: bulkRows.filter(r => r.teacherId).length })}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete {deleteTarget?.type}?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: deleteTarget?.type === 'absence' ? t('attendance.absences').toLowerCase() : t('attendance.lates').toLowerCase() })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDescAction')}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
 
       <ExcelImportDialog open={importAbsOpen} onOpenChange={setImportAbsOpen} onImport={handleImportAbsences} expectedColumns={['Teacher ID', 'Session', 'Date', 'Justified', 'Reason']} />

@@ -12,17 +12,14 @@ interface ScannedEntity {
 }
 
 interface AttendanceQRScannerProps {
-  /** Which entity type this scanner page is for */
   entityType: 'students' | 'teachers' | 'managers';
-  /** 'single' opens form after first scan, 'bulk' keeps scanning and collects IDs */
   mode: 'single' | 'bulk';
-  /** Called when scan(s) complete */
   onScanned: (ids: string[]) => void;
-  /** Trigger element — if omitted, renders a default button */
   trigger?: React.ReactNode;
+  label?: string;
 }
 
-export function AttendanceQRScanner({ entityType, mode, onScanned, trigger }: AttendanceQRScannerProps) {
+export function AttendanceQRScanner({ entityType, mode, onScanned, trigger, label }: AttendanceQRScannerProps) {
   const [open, setOpen] = useState(false);
   const [scannedIds, setScannedIds] = useState<string[]>([]);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -108,7 +105,7 @@ export function AttendanceQRScanner({ entityType, mode, onScanned, trigger }: At
       <span onClick={() => setOpen(true)} className="cursor-pointer">
         {trigger || (
           <Button variant="outline" size="sm">
-            <ScanLine className="mr-2 h-4 w-4" />Scan QR
+            <ScanLine className="mr-2 h-4 w-4" />{label || 'Scan QR'}
           </Button>
         )}
       </span>

@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Eye, Pencil, Trash2, ArrowUpDown, Download, Upload } from 'lucide-react';
 import { exportToExcel } from '@/lib/excel-utils';
+import { useTranslation } from 'react-i18next';
 
 export interface Column<T> {
   key: string;
@@ -26,6 +27,7 @@ interface Props<T> {
 }
 
 export function DataTable<T extends { id: string }>({ data, columns, searchPlaceholder, onEdit, onDelete, onView, isLoading, pageSize = 10, exportFilename, onImportClick }: Props<T>) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -69,16 +71,16 @@ export function DataTable<T extends { id: string }>({ data, columns, searchPlace
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Input placeholder={searchPlaceholder || 'Search...'} value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className="max-w-sm" />
-        <div className="ml-auto flex gap-2">
+        <Input placeholder={searchPlaceholder || `${t('common.search')}...`} value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className="max-w-sm" />
+        <div className="ms-auto flex gap-2">
           {onImportClick && (
             <Button variant="outline" size="sm" onClick={onImportClick}>
-              <Upload className="mr-2 h-4 w-4" />Import
+              <Upload className="me-2 h-4 w-4" />{t('common.import')}
             </Button>
           )}
           {exportFilename && (
             <Button variant="outline" size="sm" onClick={() => exportToExcel(filtered, columns, exportFilename)}>
-              <Download className="mr-2 h-4 w-4" />Export
+              <Download className="me-2 h-4 w-4" />{t('common.export')}
             </Button>
           )}
         </div>
@@ -92,12 +94,12 @@ export function DataTable<T extends { id: string }>({ data, columns, searchPlace
                   <span className="inline-flex items-center gap-1">{col.label} <ArrowUpDown className="h-3 w-3 opacity-50" /></span>
                 </TableHead>
               ))}
-              {(onView || onEdit || onDelete) && <TableHead className="w-24">Actions</TableHead>}
+              {(onView || onEdit || onDelete) && <TableHead className="w-24">{t('common.actions')}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
-              <TableRow><TableCell colSpan={columns.length + 1} className="text-center text-muted-foreground py-8">No records found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={columns.length + 1} className="text-center text-muted-foreground py-8">{t('common.noRecords')}</TableCell></TableRow>
             ) : paginated.map(item => (
               <TableRow key={item.id}>
                 {columns.map(col => (
@@ -121,10 +123,10 @@ export function DataTable<T extends { id: string }>({ data, columns, searchPlace
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Page {page + 1} of {totalPages} · {filtered.length} records</p>
+          <p className="text-sm text-muted-foreground">{t('common.page')} {page + 1} {t('common.of')} {totalPages} · {filtered.length} {t('common.records')}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>Previous</Button>
-            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>Next</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>{t('common.previous')}</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>{t('common.next')}</Button>
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { FilterBar } from '@/components/FilterBar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -66,8 +67,7 @@ export default function ManagersPage() {
         <div><h1 className="text-2xl font-bold tracking-tight">Managers</h1><p className="text-muted-foreground">{res?.total ?? 0} managers</p></div>
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Manager</Button>
       </div>
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <FilterBar showClear={filterLevel !== 'all' || filterClass !== 'all'} onClear={() => { setFilterLevel('all'); setFilterClass('all'); }}>
         <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); setFilterClass('all'); }}>
           <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Levels" /></SelectTrigger>
           <SelectContent>
@@ -82,10 +82,7 @@ export default function ManagersPage() {
             {(classesRes?.data || []).filter((c: any) => filterLevel === 'all' || c.levelId === filterLevel).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(filterLevel !== 'all' || filterClass !== 'all') && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterLevel('all'); setFilterClass('all'); }}>Clear filters</Button>
-        )}
-      </div>
+      </FilterBar>
       <DataTable data={(res?.data || []).filter((m: Manager) => {
         if (filterLevel !== 'all') {
           const levelClassIds = (classesRes?.data || []).filter((c: any) => c.levelId === filterLevel).map((c: any) => c.id);

@@ -8,13 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DatePickerField } from '@/components/DatePickerField';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   studentId: string;
@@ -24,6 +24,7 @@ interface Props {
 }
 
 export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, studentClassId }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [filterOfficial, setFilterOfficial] = useState<string>('all');
   const [filterType, setFilterType] = useState('all');
@@ -54,7 +55,7 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => markRecordApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['mark-records'] }); toast.success('Record deleted'); setDeleteId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['mark-records'] }); toast.success(t('marks.recordDeleted')); setDeleteId(null); },
   });
 
   const records = recordsRes?.data || [];
@@ -90,89 +91,84 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1">
-              <div className="space-y-1">
-                <Label className="text-xs">Category</Label>
-                <Select value={filterOfficial} onValueChange={setFilterOfficial}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="official">Official</SelectItem>
-                    <SelectItem value="non-official">Non-Official</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {filterOfficial !== 'official' && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Type</Label>
-                  <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-1">
-                <Label className="text-xs">Subject</Label>
-                <Select value={filterSubject} onValueChange={setFilterSubject}>
-                  <SelectTrigger><SelectValue placeholder="All subjects" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Date From</Label>
-                <DatePickerField value={filterDateFrom} onChange={setFilterDateFrom} placeholder="From" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Date To</Label>
-                <DatePickerField value={filterDateTo} onChange={setFilterDateTo} placeholder="To" />
-              </div>
-            </div>
-            <div className="flex gap-2 self-end">
-              <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setAddOfficialOpen(true); }}>
-                <Plus className="mr-1 h-4 w-4" />Official
-              </Button>
-              <Button size="sm" onClick={() => { setEditRecord(null); setAddNonOfficialOpen(true); }}>
-                <Plus className="mr-1 h-4 w-4" />Non-Official
-              </Button>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1">
+          <div className="space-y-1">
+            <Label className="text-xs">{t('common.category')}</Label>
+            <Select value={filterOfficial} onValueChange={setFilterOfficial}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('common.all')}</SelectItem>
+                <SelectItem value="official">{t('common.official')}</SelectItem>
+                <SelectItem value="non-official">{t('common.nonOfficial')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
+          {filterOfficial !== 'official' && (
+            <div className="space-y-1">
+              <Label className="text-xs">{t('common.type')}</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger><SelectValue placeholder={t('common.allTypes')} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('common.all')}</SelectItem>
+                  {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label className="text-xs">{t('common.subject')}</Label>
+            <Select value={filterSubject} onValueChange={setFilterSubject}>
+              <SelectTrigger><SelectValue placeholder={t('common.allSubjects')} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('common.all')}</SelectItem>
+                {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">{t('common.dateFrom')}</Label>
+            <DatePickerField value={filterDateFrom} onChange={setFilterDateFrom} placeholder={t('common.dateFrom')} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">{t('common.dateTo')}</Label>
+            <DatePickerField value={filterDateTo} onChange={setFilterDateTo} placeholder={t('common.dateTo')} />
+          </div>
+        </div>
+        <div className="flex gap-2 self-end">
+          <Button size="sm" variant="outline" onClick={() => { setEditRecord(null); setAddOfficialOpen(true); }}>
+            <Plus className="me-1 h-4 w-4" />{t('marks.addOfficial')}
+          </Button>
+          <Button size="sm" onClick={() => { setEditRecord(null); setAddNonOfficialOpen(true); }}>
+            <Plus className="me-1 h-4 w-4" />{t('marks.addNonOfficial')}
+          </Button>
+        </div>
+      </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Subject</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Type / Template</TableHead>
-              <TableHead>Score</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead className="w-24">Actions</TableHead>
+              <TableHead>{t('common.subject')}</TableHead>
+              <TableHead>{t('common.category')}</TableHead>
+              <TableHead>{t('common.typeTemplate')}</TableHead>
+              <TableHead>{t('common.score')}</TableHead>
+              <TableHead>{t('common.date')}</TableHead>
+              <TableHead>{t('common.notes')}</TableHead>
+              <TableHead className="w-24">{t('common.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
             ) : records.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No mark records found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('marks.noRecordsFound')}</TableCell></TableRow>
             ) : records.map(record => (
               <TableRow key={record.id}>
                 <TableCell>{getSubjectName(record.subjectId)}</TableCell>
                 <TableCell>
                   <Badge variant={record.isOfficial ? 'default' : 'secondary'}>
-                    {record.isOfficial ? 'Official' : 'Non-Official'}
+                    {record.isOfficial ? t('common.official') : t('common.nonOfficial')}
                   </Badge>
                 </TableCell>
                 <TableCell>{record.isOfficial ? getTemplateName((record as OfficialMarkRecord).templateId) : getTypeName((record as NonOfficialMarkRecord).typeId)}</TableCell>
@@ -193,7 +189,6 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
         </Table>
       </div>
 
-      {/* Non-Official Add/Edit */}
       <StudentNonOfficialDialog
         open={addNonOfficialOpen}
         onOpenChange={setAddNonOfficialOpen}
@@ -206,7 +201,6 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
         onSaved={() => qc.invalidateQueries({ queryKey: ['mark-records'] })}
       />
 
-      {/* Official Add/Edit */}
       <StudentOfficialDialog
         open={addOfficialOpen}
         onOpenChange={setAddOfficialOpen}
@@ -219,11 +213,10 @@ export function StudentMarkRecordsTab({ studentId, studentName, studentLevelId, 
         onSaved={() => qc.invalidateQueries({ queryKey: ['mark-records'] })}
       />
 
-      {/* Delete confirm */}
       <AlertDialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Delete record?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteId && deleteMut.mutate(deleteId)}>Delete</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>{t('marks.deleteRecord')}</AlertDialogTitle><AlertDialogDescription>{t('marks.deleteRecordDesc')}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => deleteId && deleteMut.mutate(deleteId)}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
@@ -238,6 +231,7 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
   subjects: any[]; types: any[];
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [subjectId, setSubjectId] = useState('');
   const [typeId, setTypeId] = useState('');
   const [score, setScore] = useState(0);
@@ -260,70 +254,53 @@ function StudentNonOfficialDialog({ open, onOpenChange, record, studentId, stude
 
   const mut = useMutation({
     mutationFn: (data: any) => isEditing ? markRecordApi.update(record!.id, data) : markRecordApi.create(data),
-    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(isEditing ? 'Updated' : 'Created'); },
+    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(isEditing ? t('attendance.updated') : t('common.created')); },
   });
 
-  const handleScoreChange = (val: number) => {
-    setScore(Math.min(val, maxScore));
-  };
-
-  const handleMaxScoreChange = (val: number) => {
-    setMaxScore(val);
-    if (score > val) setScore(val);
-  };
-
   const handleSave = () => {
-    if (!subjectId || !typeId) { toast.error('Subject and Type are required'); return; }
-    if (score > maxScore) { toast.error('Score cannot be greater than max score'); return; }
+    if (!subjectId || !typeId) { toast.error(t('marks.subjectTypeRequired')); return; }
+    if (score > maxScore) { toast.error(t('marks.scoreExceedsMax')); return; }
+    if (score < 0) { toast.error(t('marks.scoreNegative')); return; }
     mut.mutate({ studentId, subjectId, levelId: studentLevelId || '', classId: studentClassId || '', typeId, score, maxScore, date, notes, isOfficial: false });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>{isEditing ? 'Edit Non-Official Record' : 'Add Non-Official Record'}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEditing ? t('marks.editNonOfficial') : t('marks.addNonOfficialRecord')}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Subject *</Label>
+              <Label>{t('common.subject')} *</Label>
               <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('common.subject')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Select subject</SelectItem>
+                  <SelectItem value="none">{t('common.subject')}</SelectItem>
                   {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Type *</Label>
+              <Label>{t('common.type')} *</Label>
               <Select value={typeId || 'none'} onValueChange={v => setTypeId(v === 'none' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('common.type')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Select type</SelectItem>
+                  <SelectItem value="none">{t('common.type')}</SelectItem>
                   {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <Label>Max Score</Label>
-              <Input type="number" min={1} value={maxScore} onChange={e => handleMaxScoreChange(Number(e.target.value))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Score</Label>
-              <Input type="number" min={0} max={maxScore} value={score} onChange={e => handleScoreChange(Number(e.target.value))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Date</Label>
-              <DatePickerField value={date} onChange={setDate} placeholder="Pick date" />
-            </div>
+            <div className="space-y-2"><Label>{t('common.score')}</Label><Input type="number" value={score} onChange={e => setScore(Number(e.target.value))} /></div>
+            <div className="space-y-2"><Label>{t('common.maxScore')}</Label><Input type="number" value={maxScore} onChange={e => setMaxScore(Number(e.target.value))} /></div>
+            <div className="space-y-2"><Label>{t('common.date')}</Label><DatePickerField value={date} onChange={setDate} /></div>
           </div>
-          <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
+          <div className="space-y-2"><Label>{t('common.notes')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={mut.isPending}>{isEditing ? 'Update' : 'Create'}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+          <Button onClick={handleSave} disabled={mut.isPending}>{isEditing ? t('common.update') : t('common.create')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -338,6 +315,7 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
   subjects: any[]; templates: any[];
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [subjectId, setSubjectId] = useState('');
   const [scores, setScores] = useState<Record<string, number>>({});
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -374,22 +352,22 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
     }
   }, [subjectId]);
 
-  const handleScoreChange = (colId: string, val: number, maxScore: number) => {
-    setScores(prev => ({ ...prev, [colId]: Math.min(val, maxScore) }));
-  };
-
   const upsertMut = useMutation({
     mutationFn: (data: any) => markRecordApi.upsertOfficial(data),
-    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(existingId ? 'Updated' : 'Created'); },
+    onSuccess: () => { onSaved(); onOpenChange(false); toast.success(existingId ? t('attendance.updated') : t('common.created')); },
   });
 
   const handleSave = () => {
-    if (!subjectId) { toast.error('Subject is required'); return; }
-    if (!template) { toast.error('No template for this level'); return; }
-    // Validate scores
+    if (!subjectId) { toast.error(t('marks.subjectRequired')); return; }
+    if (!template) { toast.error(t('marks.noTemplateForLevel')); return; }
     for (const col of template.columns) {
-      if (scores[col.id] !== undefined && scores[col.id] > col.maxScore) {
-        toast.error(`${col.name} score cannot exceed ${col.maxScore}`);
+      const val = scores[col.id];
+      if (val !== undefined && val > col.maxScore) {
+        toast.error(t('marks.columnScoreExceedsMax', { name: col.name, val, max: col.maxScore }));
+        return;
+      }
+      if (val !== undefined && val < 0) {
+        toast.error(t('marks.columnScoreNegative', { name: col.name }));
         return;
       }
     }
@@ -399,36 +377,36 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Official Mark Record</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t('marks.officialMarkRecord')}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Subject *</Label>
+            <Label>{t('common.subject')} *</Label>
             <Select value={subjectId || 'none'} onValueChange={v => setSubjectId(v === 'none' ? '' : v)}>
-              <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t('common.subject')} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Select subject</SelectItem>
+                <SelectItem value="none">{t('common.subject')}</SelectItem>
                 {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
           {!template && (
-            <p className="text-sm text-destructive">No official template configured for this student's level.</p>
+            <p className="text-sm text-destructive">{t('marks.noTemplateForLevel')}</p>
           )}
 
-          {existingId && <Badge variant="outline" className="text-xs">Editing existing record — values will be updated</Badge>}
+          {existingId && <Badge variant="outline" className="text-xs">{t('marks.editingExisting')}</Badge>}
 
           {template && subjectId && (
             <div className="space-y-2">
               <Label>{template.name}</Label>
               {loadingExisting ? (
-                <p className="text-sm text-muted-foreground">Loading...</p>
+                <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
               ) : (
                 <div className="space-y-2 rounded-md border p-3">
                   {template.columns.sort((a: any, b: any) => a.order - b.order).map((col: any) => (
                     <div key={col.id} className="flex items-center gap-3">
-                      <span className="text-sm flex-1">{col.name} <span className="text-muted-foreground">(max: {col.maxScore})</span></span>
-                      <Input type="number" className="w-24" min={0} max={col.maxScore} value={scores[col.id] ?? ''} onChange={e => handleScoreChange(col.id, Number(e.target.value), col.maxScore)} />
+                      <span className="text-sm flex-1">{col.name} <span className="text-muted-foreground">({t('common.max')}: {col.maxScore})</span></span>
+                      <Input type="number" className="w-24" min={0} max={col.maxScore} value={scores[col.id] ?? ''} onChange={e => setScores(prev => ({ ...prev, [col.id]: Number(e.target.value) }))} />
                     </div>
                   ))}
                 </div>
@@ -437,13 +415,13 @@ function StudentOfficialDialog({ open, onOpenChange, record, studentId, studentL
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2"><Label>Date</Label><DatePickerField value={date} onChange={setDate} placeholder="Pick date" /></div>
-            <div className="space-y-2"><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
+            <div className="space-y-2"><Label>{t('common.date')}</Label><DatePickerField value={date} onChange={setDate} /></div>
+            <div className="space-y-2"><Label>{t('common.notes')}</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={upsertMut.isPending}>{existingId ? 'Update' : 'Save'}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+          <Button onClick={handleSave} disabled={upsertMut.isPending}>{existingId ? t('common.update') : t('common.save')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

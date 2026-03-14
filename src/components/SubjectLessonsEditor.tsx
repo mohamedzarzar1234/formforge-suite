@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, BookOpen, GripVertical, FolderPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { InlineEdit } from '@/components/InlineEdit';
 import type { Lesson, Unit } from '@/types/exam';
 import {
@@ -69,8 +70,9 @@ function InlineOrderEdit({ value, onSave }: { value: number; onSave: (v: number)
 }
 
 // ── Sortable Lesson Item ──
-function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
+function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions, t }: {
   lesson: Lesson; onUpdate: (id: string, data: Partial<Lesson>) => void; onDelete: (id: string) => void; onViewQuestions: (id: string) => void;
+  t: (key: string) => string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 };
@@ -83,7 +85,7 @@ function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
       <InlineOrderEdit value={lesson.order} onSave={(v) => onUpdate(lesson.id, { order: v })} />
       <div className="flex-1 min-w-0">
         <InlineEdit value={lesson.name} onSave={(val) => onUpdate(lesson.id, { name: val })} className="font-medium text-sm text-foreground block truncate" />
-        <InlineEdit value={lesson.description || ''} onSave={(val) => onUpdate(lesson.id, { description: val })} className="text-xs text-muted-foreground block truncate" placeholder="Add description..." />
+        <InlineEdit value={lesson.description || ''} onSave={(val) => onUpdate(lesson.id, { description: val })} className="text-xs text-muted-foreground block truncate" placeholder={t('lessons.addDescription')} />
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onViewQuestions(lesson.id)}><BookOpen className="h-3.5 w-3.5" /></Button>
@@ -169,6 +171,7 @@ interface SubjectLessonsEditorProps {
 }
 
 export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEditorProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -310,15 +313,15 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
 
   const createLessonMut = useMutation({
     mutationFn: (data: Omit<Lesson, 'id' | 'createdAt'>) => lessonApi.create(data),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson created' }); setDialogOpen(false); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonCreated') }); setDialogOpen(false); },
   });
   const updateLessonMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Lesson> }) => lessonApi.update(id, data),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson updated' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonUpdated') }); },
   });
   const deleteLessonMut = useMutation({
     mutationFn: (id: string) => lessonApi.delete(id),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson deleted' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonDeleted') }); },
   });
   const reorderLessonsMut = useMutation({
     mutationFn: (ids: string[]) => lessonApi.reorder(ids),
@@ -327,12 +330,12 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
   const moveToUnitMut = useMutation({
     mutationFn: ({ lessonId, newUnitId, targetOrder }: { lessonId: string; newUnitId: string; targetOrder: string[] }) =>
       lessonApi.moveToUnit(lessonId, newUnitId, targetOrder),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson moved' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonMoved') }); },
   });
   const createUnitMut = useMutation({
     mutationFn: (data: Omit<Unit, 'id' | 'createdAt'>) => unitApi.create(data),
     onSuccess: (res) => {
-      invalidate(); toast({ title: 'Unit created' }); setUnitDialogOpen(false);
+      invalidate(); toast({ title: t('lessons.unitCreated') }); setUnitDialogOpen(false);
       if (pendingLessonForm) {
         setForm({ ...pendingLessonForm, unitId: res.data.id });
         setDialogOpen(true);
@@ -342,15 +345,15 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
   });
   const updateUnitMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Unit> }) => unitApi.update(id, data),
-    onSuccess: () => { invalidate(); toast({ title: 'Unit updated' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.unitUpdated') }); },
   });
   const deleteUnitMut = useMutation({
     mutationFn: (id: string) => unitApi.delete(id),
-    onSuccess: () => { invalidate(); toast({ title: 'Unit deleted' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.unitDeleted') }); },
   });
   const reorderUnitsMut = useMutation({
     mutationFn: (ids: string[]) => unitApi.reorder(ids),
-    onSuccess: () => { invalidate(); toast({ title: 'Units reordered' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.unitsReordered') }); },
   });
 
   const openCreateLesson = () => {
@@ -361,7 +364,7 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
   };
 
   const handleSubmitLesson = () => {
-    if (!form.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
+    if (!form.name) { toast({ title: t('lessons.nameRequired'), variant: 'destructive' }); return; }
     const data = { name: form.name, description: form.description, subjectId, levelId, unitId: form.unitId, order: form.order };
     if (editing) updateLessonMut.mutate({ id: editing.id, data });
     else createLessonMut.mutate(data);
@@ -369,7 +372,7 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
 
   const openCreateUnit = () => { setUnitForm({ name: '', order: allUnits.length + 1 }); setUnitDialogOpen(true); };
   const handleSubmitUnit = () => {
-    if (!unitForm.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
+    if (!unitForm.name) { toast({ title: t('lessons.nameRequired'), variant: 'destructive' }); return; }
     createUnitMut.mutate({ name: unitForm.name, subjectId, levelId, order: unitForm.order });
   };
 
@@ -379,8 +382,8 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={openCreateUnit}><FolderPlus className="h-4 w-4 mr-2" /> Add Unit</Button>
-        <Button size="sm" onClick={openCreateLesson}><Plus className="h-4 w-4 mr-2" /> Add Lesson</Button>
+        <Button variant="outline" size="sm" onClick={openCreateUnit}><FolderPlus className="h-4 w-4 mr-2" /> {t('lessons.addUnit')}</Button>
+        <Button size="sm" onClick={openCreateLesson}><Plus className="h-4 w-4 mr-2" /> {t('lessons.addLesson')}</Button>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
@@ -392,12 +395,13 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
                 <DraggableUnit key={unit.id} unit={unit} onUpdateUnit={(id, data) => updateUnitMut.mutate({ id, data })} onDeleteUnit={id => deleteUnitMut.mutate(id)}>
                   <SortableContext items={containers[unit.id] ?? []} strategy={verticalListSortingStrategy}>
                     {unitLessons.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">Drop lessons here or add new ones</p>
+                      <p className="text-sm text-muted-foreground text-center py-4">{t('lessons.dropHere')}</p>
                     ) : unitLessons.map(lesson => (
                       <SortableLessonItem key={lesson.id} lesson={lesson}
                         onUpdate={(id, data) => updateLessonMut.mutate({ id, data })}
                         onDelete={id => deleteLessonMut.mutate(id)}
                         onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                        t={t}
                       />
                     ))}
                   </SortableContext>
@@ -409,7 +413,7 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
 
         {ungroupedLessons.length > 0 && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Ungrouped Lessons</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('lessons.ungrouped')}</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               <SortableContext items={containers['__ungrouped__'] ?? []} strategy={verticalListSortingStrategy}>
                 {ungroupedLessons.map(lesson => (
@@ -417,6 +421,7 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
                     onUpdate={(id, data) => updateLessonMut.mutate({ id, data })}
                     onDelete={id => deleteLessonMut.mutate(id)}
                     onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                    t={t}
                   />
                 ))}
               </SortableContext>
@@ -431,31 +436,31 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
       </DndContext>
 
       {allUnits.length === 0 && ungroupedLessons.length === 0 && (
-        <Card><CardContent className="py-12 text-center"><p className="text-muted-foreground">No lessons yet. Start by creating a unit, then add lessons.</p></CardContent></Card>
+        <Card><CardContent className="py-12 text-center"><p className="text-muted-foreground">{t('lessons.noLessonsShort')}</p></CardContent></Card>
       )}
 
       {/* Lesson Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? 'Edit Lesson' : 'Add Lesson'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? t('lessons.editLesson') : t('lessons.addLesson')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Lesson name" /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description" /></div>
+            <div><Label>{t('common.name')} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('lessons.lessonName')} /></div>
+            <div><Label>{t('common.description')}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder={t('lessons.briefDescription')} /></div>
             <div>
-              <Label>Unit</Label>
+              <Label>{t('lessons.addUnit').split(' ').pop()}</Label>
               <div className="flex gap-2">
                 <Select value={form.unitId} onValueChange={v => setForm(f => ({ ...f, unitId: v }))}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={t('lessons.selectUnit')} /></SelectTrigger>
                   <SelectContent>{allUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
                 </Select>
                 <Button variant="outline" size="icon" onClick={() => { setPendingLessonForm({ ...form }); setDialogOpen(false); openCreateUnit(); }}><FolderPlus className="h-4 w-4" /></Button>
               </div>
             </div>
-            <div><Label>Order</Label><Input type="number" min={1} value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
+            <div><Label>{t('lessons.order')}</Label><Input type="number" min={1} value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitLesson} disabled={createLessonMut.isPending || updateLessonMut.isPending}>{editing ? 'Update' : 'Create'}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleSubmitLesson} disabled={createLessonMut.isPending || updateLessonMut.isPending}>{editing ? t('common.edit') : t('common.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -466,17 +471,17 @@ export function SubjectLessonsEditor({ subjectId, levelId }: SubjectLessonsEdito
         if (!open && pendingLessonForm) { setForm(pendingLessonForm); setDialogOpen(true); setPendingLessonForm(null); }
       }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Unit</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('lessons.addUnit')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Unit Name *</Label><Input value={unitForm.name} onChange={e => setUnitForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Unit 1: Basics" /></div>
-            <div><Label>Order</Label><Input type="number" min={1} value={unitForm.order} onChange={e => setUnitForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
+            <div><Label>{t('lessons.unitName')} *</Label><Input value={unitForm.name} onChange={e => setUnitForm(f => ({ ...f, name: e.target.value }))} placeholder={t('lessons.unitExample')} /></div>
+            <div><Label>{t('lessons.order')}</Label><Input type="number" min={1} value={unitForm.order} onChange={e => setUnitForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setUnitDialogOpen(false);
               if (pendingLessonForm) { setForm(pendingLessonForm); setDialogOpen(true); setPendingLessonForm(null); }
-            }}>Cancel</Button>
-            <Button onClick={handleSubmitUnit} disabled={createUnitMut.isPending}>Create</Button>
+            }}>{t('common.cancel')}</Button>
+            <Button onClick={handleSubmitUnit} disabled={createUnitMut.isPending}>{t('common.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

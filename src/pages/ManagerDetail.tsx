@@ -17,8 +17,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, UserX, Clock, Pencil, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function ManagerDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -35,15 +37,15 @@ export default function ManagerDetail() {
 
   const updateMut = useMutation({
     mutationFn: (data: any) => managerApi.update(id!, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers', id] }); setEditOpen(false); toast.success('Manager updated'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['managers', id] }); setEditOpen(false); toast.success(t('managers.updated')); },
   });
   const deleteMut = useMutation({
     mutationFn: () => managerApi.delete(id!),
-    onSuccess: () => { toast.success('Manager deleted'); navigate('/managers'); },
+    onSuccess: () => { toast.success(t('managers.deleted')); navigate('/managers'); },
   });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
-  if (!manager) return <div className="text-center py-12 text-muted-foreground">Manager not found</div>;
+  if (!manager) return <div className="text-center py-12 text-muted-foreground">{t('managers.notFound')}</div>;
 
   const fullName = `${manager.firstname} ${manager.lastname}`;
 
@@ -58,30 +60,30 @@ export default function ManagerDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/managers')}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{fullName}</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-2 h-4 w-4" />Edit</Button>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" />Delete</Button>
+          <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="me-2 h-4 w-4" />{t('common.edit')}</Button>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 className="me-2 h-4 w-4" />{t('common.delete')}</Button>
           <QRCodeDisplay entityType="managers" entityId={manager.id} entityName={fullName} />
         </div>
       </div>
 
       <Tabs defaultValue="info">
         <TabsList>
-          <TabsTrigger value="info">Information</TabsTrigger>
-          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />Absences</TabsTrigger>
-          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />Lates</TabsTrigger>
+          <TabsTrigger value="info">{t('tabs.info')}</TabsTrigger>
+          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />{t('tabs.absences')}</TabsTrigger>
+          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />{t('tabs.lates')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader><CardTitle className="text-lg">Assigned Classes</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{t('common.assignedClasses')}</CardTitle></CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {manager.classIds.map(cid => <Badge key={cid} variant="outline">{classesRes?.data?.find(c => c.id === cid)?.name || cid}</Badge>)}
-                {manager.classIds.length === 0 && <p className="text-muted-foreground">None assigned</p>}
+                {manager.classIds.length === 0 && <p className="text-muted-foreground">{t('common.noneAssigned')}</p>}
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-lg">Details</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{t('common.details')}</CardTitle></CardHeader>
               <CardContent><DynamicView fields={fields} data={manager.dynamicFields || {}} /></CardContent>
             </Card>
           </div>
@@ -95,31 +97,29 @@ export default function ManagerDetail() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Manager</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('managers.editManager')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>First Name</Label><Input value={editForm.firstname || ''} onChange={e => setEditForm((f: any) => ({ ...f, firstname: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Last Name</Label><Input value={editForm.lastname || ''} onChange={e => setEditForm((f: any) => ({ ...f, lastname: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>{t('common.firstName')}</Label><Input value={editForm.firstname || ''} onChange={e => setEditForm((f: any) => ({ ...f, firstname: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>{t('common.lastName')}</Label><Input value={editForm.lastname || ''} onChange={e => setEditForm((f: any) => ({ ...f, lastname: e.target.value }))} /></div>
             </div>
             {fields.length > 0 && (
               <DynamicFormFields fields={fields} values={editForm.dynamicFields || {}} onChange={(vals) => setEditForm((f: any) => ({ ...f, dynamicFields: vals }))} />
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={() => updateMut.mutate(editForm)} disabled={updateMut.isPending}>Save</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => updateMut.mutate(editForm)} disabled={updateMut.isPending}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Delete manager?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {fullName}.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteMut.mutate()}>Delete</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: t('nav.managers').toLowerCase() })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDesc', { name: fullName })}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => deleteMut.mutate()}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

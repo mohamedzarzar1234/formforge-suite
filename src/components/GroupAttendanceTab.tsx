@@ -16,72 +16,73 @@ import { AttendanceCalendarView } from '@/components/AttendanceCalendarView';
 import { DatePickerField } from '@/components/DatePickerField';
 import { ViewToggle } from '@/components/ViewToggle';
 import { toast } from 'sonner';
-import { studentAttendanceApi, teacherAttendanceApi, managerAttendanceApi, getSessionOptions } from '@/services/attendance-api';
+import { studentAttendanceApi } from '@/services/attendance-api';
 import { useTranslation } from 'react-i18next';
 
 const today = () => new Date().toISOString().split('T')[0];
 
-interface EntityAttendanceTabProps {
-  entityType: 'student' | 'teacher' | 'manager';
-  entityId: string;
-  entityName: string;
-  recordType: 'absences' | 'lates';
+interface StudentInfo {
+  id: string;
+  firstname: string;
+  lastname: string;
 }
 
-export function EntityAttendanceTab({ entityType, entityId, entityName, recordType }: EntityAttendanceTabProps) {
+interface GroupAttendanceTabProps {
+  students: StudentInfo[];
+  recordType: 'absences' | 'lates';
+  title?: string;
+}
+
+export function GroupAttendanceTab({ students, recordType, title }: GroupAttendanceTabProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-
+  const [formStudentId, setFormStudentId] = useState('');
   const [formDate, setFormDate] = useState(today());
   const [formJustified, setFormJustified] = useState(false);
   const [formReason, setFormReason] = useState('');
   const [formPeriod, setFormPeriod] = useState(10);
-  const [formSession, setFormSession] = useState(getSessionOptions()[0] || '');
-
-  const filter = { entityId };
-
-  const api: any = entityType === 'student' ? studentAttendanceApi : entityType === 'teacher' ? teacherAttendanceApi : managerAttendanceApi;
-
-  const absQuery = useQuery<any>({
-    queryKey: [`${entityType}-absences`, filter],
-    queryFn: () => api.getAbsences(filter),
-    enabled: recordType === 'absences',
-  });
-  const lateQuery = useQuery<any>({
-    queryKey: [`${entityType}-lates`, filter],
-    queryFn: () => api.getLates(filter),
-    enabled: recordType === 'lates',
-  });
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: [`${entityType}-absences`] });
-    qc.invalidateQueries({ queryKey: [`${entityType}-lates`] });
-    qc.invalidateQueries({ queryKey: [`${entityType}-attendance-stats`] });
-  };
 
   const isAbsences = recordType === 'absences';
-  const rawItems: any[] = isAbsences ? (absQuery.data?.data || []) : (lateQuery.data?.data || []);
-  const isLoading = isAbsences ? absQuery.isLoading : lateQuery.isLoading;
+  const studentIds = useMemo(() => students.map(s => s.id), [students]);
+
+  const { data: absencesRes, isLoading: absLoading } = useQuery({
+    queryKey: ['student-absences-all'],
+    queryFn: () => studentAttendanceApi.getAbsences(),
+    enabled: isAbsences,
+  });
+  const { data: latesRes, isLoading: lateLoading } = useQuery({
+    queryKey: ['student-lates-all'],
+    queryFn: () => studentAttendanceApi.getLates(),
+    enabled: !isAbsences,
+  });
+
+  const isLoading = isAbsences ? absLoading : lateLoading;
+  const rawItems: any[] = isAbsences ? (absencesRes?.data || []) : (latesRes?.data || []);
 
   const items = useMemo(() => {
-    let filtered = rawItems;
+    let filtered = rawItems.filter(i => studentIds.includes(i.studentId));
     if (dateFrom) filtered = filtered.filter(i => i.date >= dateFrom);
     if (dateTo) filtered = filtered.filter(i => i.date <= dateTo);
     return filtered;
-  }, [rawItems, dateFrom, dateTo]);
+  }, [rawItems, studentIds, dateFrom, dateTo]);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['student-absences'] });
+    qc.invalidateQueries({ queryKey: ['student-absences-all'] });
+    qc.invalidateQueries({ queryKey: ['student-lates'] });
+    qc.invalidateQueries({ queryKey: ['student-lates-all'] });
+    qc.invalidateQueries({ queryKey: ['student-attendance-stats'] });
+  };
 
   const createMut = useMutation({
-    mutationFn: (data: any) => {
-      if (isAbsences) return (api as any).createAbsence(data);
-      return (api as any).createLate(data);
-    },
+    mutationFn: (data: any) => isAbsences ? studentAttendanceApi.createAbsence(data) : studentAttendanceApi.createLate(data),
     onSuccess: (res: any) => {
       if (!res.success) { toast.error(res.message); return; }
       invalidate(); setDialogOpen(false);
@@ -90,54 +91,42 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, ...data }: any) => {
-      if (isAbsences) return (api as any).updateAbsence(id, data);
-      return (api as any).updateLate(id, data);
-    },
+    mutationFn: ({ id, ...data }: any) => isAbsences ? studentAttendanceApi.updateAbsence(id, data) : studentAttendanceApi.updateLate(id, data),
     onSuccess: () => { invalidate(); setEditingId(null); setDialogOpen(false); toast.success(t('attendance.updated')); },
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => {
-      if (isAbsences) return (api as any).deleteAbsence(id);
-      return (api as any).deleteLate(id);
-    },
+    mutationFn: (id: string) => isAbsences ? studentAttendanceApi.deleteAbsence(id) : studentAttendanceApi.deleteLate(id),
     onSuccess: () => { invalidate(); toast.success(t('attendance.deleted')); },
   });
 
+  const getStudentName = (id: string) => {
+    const s = students.find(x => x.id === id);
+    return s ? `${s.firstname} ${s.lastname}` : id;
+  };
+
   const resetForm = (item?: any) => {
+    setFormStudentId(item?.studentId || '');
     setFormDate(item?.date || today());
     setFormJustified(item?.isJustified || false);
     setFormReason(item?.reason || '');
     setFormPeriod(item?.period || 10);
-    setFormSession(item?.session || getSessionOptions()[0] || '');
   };
 
   const handleSubmit = () => {
-    const idField = entityType === 'student' ? 'studentId' : entityType === 'teacher' ? 'teacherId' : 'managerId';
-    const base: any = {
-      [idField]: entityId,
-      date: formDate,
-      isJustified: formJustified,
-      reason: formJustified ? formReason : undefined,
-    };
-    if (entityType === 'teacher') base.session = formSession;
+    if (!formStudentId) { toast.error(t('common.selectStudent')); return; }
+    const base: any = { studentId: formStudentId, date: formDate, isJustified: formJustified, reason: formJustified ? formReason : undefined };
     if (!isAbsences) base.period = formPeriod;
-
-    if (editingId) {
-      updateMut.mutate({ id: editingId, ...base });
-    } else {
-      createMut.mutate(base);
-    }
+    if (editingId) updateMut.mutate({ id: editingId, ...base });
+    else createMut.mutate(base);
   };
 
-  const sessionOptions = getSessionOptions();
   const recordTypeLabel = isAbsences ? t('common.absences').toLowerCase() : t('common.lates').toLowerCase();
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{items.length} {recordTypeLabel} — {entityName}</p>
+        <p className="text-sm text-muted-foreground">{items.length} {recordTypeLabel} {title ? `— ${title}` : ''}</p>
         <div className="flex items-center gap-2 flex-wrap">
           {viewMode !== 'calendar' && (
             <>
@@ -163,10 +152,10 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
 
       {isLoading ? <Skeleton className="h-48 w-full" /> : viewMode === 'calendar' ? (
         <AttendanceCalendarView
-          isShowMixed={false}
           items={items}
           type={recordType}
-          showEntity={false}
+          getEntityName={(item) => getStudentName(item.studentId)}
+          showEntity={true}
           onEdit={(item) => { resetForm(item); setEditingId(item.id); setDialogOpen(true); }}
           onDelete={(item) => setDeleteTarget(item.id)}
         />
@@ -175,7 +164,7 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
           <Table>
             <TableHeader>
               <TableRow>
-                {entityType === 'teacher' && <TableHead>{t('common.session')}</TableHead>}
+                <TableHead>{t('common.student')}</TableHead>
                 <TableHead>{t('common.date')}</TableHead>
                 {!isAbsences && <TableHead>{t('common.period')}</TableHead>}
                 <TableHead>{t('common.justified')}</TableHead>
@@ -185,10 +174,10 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
             </TableHeader>
             <TableBody>
               {items.length === 0 ? (
-                <TableRow><TableCell colSpan={entityType === 'teacher' ? 6 : 5} className="text-center text-muted-foreground py-8">{isAbsences ? t('attendance.noAbsences') : t('attendance.noLates')}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAbsences ? 5 : 6} className="text-center text-muted-foreground py-8">{isAbsences ? t('attendance.noAbsences') : t('attendance.noLates')}</TableCell></TableRow>
               ) : items.map((item: any) => (
                 <TableRow key={item.id}>
-                  {entityType === 'teacher' && <TableCell>{item.session}</TableCell>}
+                  <TableCell className="font-medium">{getStudentName(item.studentId)}</TableCell>
                   <TableCell>{item.date}</TableCell>
                   {!isAbsences && <TableCell>{item.period} {t('attendance.min')}</TableCell>}
                   <TableCell><Badge variant={item.isJustified ? 'default' : 'destructive'}>{item.isJustified ? t('common.yes') : t('common.no')}</Badge></TableCell>
@@ -210,15 +199,15 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
         <DialogContent>
           <DialogHeader><DialogTitle>{editingId ? t('common.edit') : t('common.add')} {isAbsences ? t('common.absences') : t('common.lates')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            {entityType === 'teacher' && (
-              <div className="space-y-2">
-                <Label>{t('common.session')}</Label>
-                <Select value={formSession} onValueChange={setFormSession}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>{t('common.student')}</Label>
+              <Select value={formStudentId} onValueChange={setFormStudentId}>
+                <SelectTrigger><SelectValue placeholder={t('common.selectStudent')} /></SelectTrigger>
+                <SelectContent>
+                  {students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2"><Label>{t('common.date')}</Label><DatePickerField value={formDate} onChange={setFormDate} /></div>
             {!isAbsences && <div className="space-y-2"><Label>{t('common.period')}</Label><Input type="number" min={1} value={formPeriod} onChange={e => setFormPeriod(parseInt(e.target.value) || 0)} /></div>}
             <div className="flex items-center gap-2"><Switch checked={formJustified} onCheckedChange={v => { setFormJustified(v); if (!v) setFormReason(''); }} /><Label>{t('common.justified')}</Label></div>
@@ -233,7 +222,7 @@ export function EntityAttendanceTab({ entityType, entityId, entityName, recordTy
 
       <AlertDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: isAbsences ? t('common.absences').toLowerCase() : t('common.lates').toLowerCase() })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDescAction')}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: recordTypeLabel })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDescAction')}</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { if (deleteTarget) { deleteMut.mutate(deleteTarget); setDeleteTarget(null); } }}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

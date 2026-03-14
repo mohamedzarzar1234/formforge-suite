@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, BookOpen, GripVertical, ArrowLeft, FolderPlus, ChevronRight, Download, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { InlineEdit } from '@/components/InlineEdit';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
 import { exportToExcel } from '@/lib/excel-utils';
@@ -83,11 +84,12 @@ function InlineOrderEdit({ value, onSave }: { value: number; onSave: (v: number)
 }
 
 // ── Sortable Lesson Item ──
-function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
+function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions, t }: {
   lesson: Lesson;
   onUpdate: (id: string, data: Partial<Lesson>) => void;
   onDelete: (id: string) => void;
   onViewQuestions: (id: string) => void;
+  t: (key: string) => string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 };
@@ -100,7 +102,7 @@ function SortableLessonItem({ lesson, onUpdate, onDelete, onViewQuestions }: {
       <InlineOrderEdit value={lesson.order} onSave={(v) => onUpdate(lesson.id, { order: v })} />
       <div className="flex-1 min-w-0">
         <InlineEdit value={lesson.name} onSave={(val) => onUpdate(lesson.id, { name: val })} className="font-medium text-sm text-foreground block truncate" />
-        <InlineEdit value={lesson.description || ''} onSave={(val) => onUpdate(lesson.id, { description: val })} className="text-xs text-muted-foreground block truncate" placeholder="Add description..." />
+        <InlineEdit value={lesson.description || ''} onSave={(val) => onUpdate(lesson.id, { description: val })} className="text-xs text-muted-foreground block truncate" placeholder={t('lessons.addDescription')} />
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onViewQuestions(lesson.id)}><BookOpen className="h-3.5 w-3.5" /></Button>
@@ -190,14 +192,14 @@ function UnitOverlay({ unit }: { unit: Unit }) {
 }
 
 // ── Level Selection Step ──
-function LevelSelector({ levels, onSelect }: { levels: Level[]; onSelect: (l: Level) => void }) {
+function LevelSelector({ levels, onSelect, t }: { levels: Level[]; onSelect: (l: Level) => void; t: (key: string) => string }) {
   const colors = ['bg-emerald-500/10 text-emerald-700 border-emerald-200', 'bg-blue-500/10 text-blue-700 border-blue-200', 'bg-red-500/10 text-red-700 border-red-200', 'bg-amber-500/10 text-amber-700 border-amber-200', 'bg-purple-500/10 text-purple-700 border-purple-200'];
   const emojis = ['🟢', '🔵', '🔴', '🟡', '🟣'];
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-xl font-bold text-foreground">Select a Level</h2>
-        <p className="text-sm text-muted-foreground mt-1">Choose a level to manage its lessons</p>
+        <h2 className="text-xl font-bold text-foreground">{t('lessons.selectLevel')}</h2>
+        <p className="text-sm text-muted-foreground mt-1">{t('lessons.selectLevelDesc')}</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {levels.map((level, i) => (
@@ -205,7 +207,7 @@ function LevelSelector({ levels, onSelect }: { levels: Level[]; onSelect: (l: Le
             className={`group p-6 rounded-xl border-2 transition-all hover:shadow-lg hover:scale-[1.02] text-left ${colors[i % colors.length]}`}>
             <span className="text-3xl">{emojis[i % emojis.length]}</span>
             <h3 className="text-lg font-bold mt-3">{level.name}</h3>
-            <p className="text-xs mt-1 opacity-70">{level.description || 'Click to select'}</p>
+            <p className="text-xs mt-1 opacity-70">{level.description || t('lessons.clickToSelect')}</p>
             <ChevronRight className="h-5 w-5 mt-3 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </button>
         ))}
@@ -215,7 +217,7 @@ function LevelSelector({ levels, onSelect }: { levels: Level[]; onSelect: (l: Le
 }
 
 // ── Subject Selection Step ──
-function SubjectSelector({ subjects, levelName, onSelect, onBack }: { subjects: Subject[]; levelName: string; onSelect: (s: Subject) => void; onBack: () => void }) {
+function SubjectSelector({ subjects, levelName, onSelect, onBack, t }: { subjects: Subject[]; levelName: string; onSelect: (s: Subject) => void; onBack: () => void; t: (key: string) => string }) {
   const emojis = ['📘', '🧪', '🌍', '📐', '🎨', '🎵', '💻', '📖'];
   const colors = ['bg-blue-500/10 text-blue-700 border-blue-200', 'bg-green-500/10 text-green-700 border-green-200', 'bg-teal-500/10 text-teal-700 border-teal-200', 'bg-orange-500/10 text-orange-700 border-orange-200', 'bg-pink-500/10 text-pink-700 border-pink-200', 'bg-violet-500/10 text-violet-700 border-violet-200'];
   return (
@@ -223,8 +225,8 @@ function SubjectSelector({ subjects, levelName, onSelect, onBack }: { subjects: 
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
         <div>
-          <h2 className="text-xl font-bold text-foreground">Select a Subject</h2>
-          <p className="text-sm text-muted-foreground">Level: <Badge variant="outline">{levelName}</Badge></p>
+          <h2 className="text-xl font-bold text-foreground">{t('lessons.selectSubject')}</h2>
+          <p className="text-sm text-muted-foreground">{t('common.level')}: <Badge variant="outline">{levelName}</Badge></p>
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -244,6 +246,7 @@ function SubjectSelector({ subjects, levelName, onSelect, onBack }: { subjects: 
 
 // ── Main Lessons Page ──
 export default function Lessons() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -262,7 +265,6 @@ export default function Lessons() {
   const [containers, setContainers] = useState<Record<string, string[]>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragType, setDragType] = useState<'lesson' | 'unit' | null>(null);
-  // For tracking cross‑unit moves
   const [originalContainer, setOriginalContainer] = useState<string | null>(null);
   const [initialContainerItems, setInitialContainerItems] = useState<Record<string, string[]>>({});
 
@@ -367,7 +369,6 @@ export default function Lessons() {
     setActiveId(null);
     setDragType(null);
     if (!over) {
-      // Clean up state even if no target
       setOriginalContainer(null);
       setInitialContainerItems({});
       return;
@@ -435,15 +436,15 @@ export default function Lessons() {
 
   const createLessonMut = useMutation({
     mutationFn: (data: Omit<Lesson, 'id' | 'createdAt'>) => lessonApi.create(data),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson created' }); setDialogOpen(false); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonCreated') }); setDialogOpen(false); },
   });
   const updateLessonMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Lesson> }) => lessonApi.update(id, data),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson updated' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonUpdated') }); },
   });
   const deleteLessonMut = useMutation({
     mutationFn: (id: string) => lessonApi.delete(id),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson deleted' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonDeleted') }); },
   });
   const reorderWithinUnitMut = useMutation({
     mutationFn: (ids: string[]) => lessonApi.reorder(ids),
@@ -452,13 +453,13 @@ export default function Lessons() {
   const moveToUnitMut = useMutation({
     mutationFn: ({ lessonId, newUnitId, targetOrder }: { lessonId: string; newUnitId: string; targetOrder: string[] }) =>
       lessonApi.moveToUnit(lessonId, newUnitId, targetOrder),
-    onSuccess: () => { invalidate(); toast({ title: 'Lesson moved' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.lessonMoved') }); },
   });
   const createUnitMut = useMutation({
     mutationFn: (data: Omit<Unit, 'id' | 'createdAt'>) => unitApi.create(data),
     onSuccess: (res) => {
       invalidate();
-      toast({ title: 'Unit created' });
+      toast({ title: t('lessons.unitCreated') });
       setUnitDialogOpen(false);
       if (pendingLessonForm) {
         setForm({ ...pendingLessonForm, unitId: res.data.id });
@@ -469,15 +470,15 @@ export default function Lessons() {
   });
   const updateUnitMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Unit> }) => unitApi.update(id, data),
-    onSuccess: () => { invalidate(); toast({ title: 'Unit updated' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.unitUpdated') }); },
   });
   const deleteUnitMut = useMutation({
     mutationFn: (id: string) => unitApi.delete(id),
-    onSuccess: () => { invalidate(); toast({ title: 'Unit deleted' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.unitDeleted') }); },
   });
   const reorderUnitsMut = useMutation({
     mutationFn: (ids: string[]) => unitApi.reorder(ids),
-    onSuccess: () => { invalidate(); toast({ title: 'Units reordered' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('lessons.unitsReordered') }); },
   });
 
   // ── Handlers ──
@@ -488,7 +489,7 @@ export default function Lessons() {
     setDialogOpen(true);
   };
   const handleSubmitLesson = () => {
-    if (!form.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
+    if (!form.name) { toast({ title: t('lessons.nameRequired'), variant: 'destructive' }); return; }
     const data = { name: form.name, description: form.description, subjectId: selectedSubject!.id, levelId: selectedLevel!.id, unitId: form.unitId, order: form.order };
     if (editing) updateLessonMut.mutate({ id: editing.id, data });
     else createLessonMut.mutate(data);
@@ -496,7 +497,7 @@ export default function Lessons() {
 
   const openCreateUnit = () => { setUnitForm({ name: '', order: allUnits.length + 1 }); setUnitDialogOpen(true); };
   const handleSubmitUnit = () => {
-    if (!unitForm.name) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
+    if (!unitForm.name) { toast({ title: t('lessons.nameRequired'), variant: 'destructive' }); return; }
     createUnitMut.mutate({ name: unitForm.name, subjectId: selectedSubject!.id, levelId: selectedLevel!.id, order: unitForm.order });
   };
 
@@ -512,26 +513,25 @@ export default function Lessons() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Lessons</h1>
-          <p className="text-sm text-muted-foreground">Manage lessons by level and subject</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('lessons.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('lessons.subtitle')}</p>
         </div>
-        <LevelSelector levels={levels} onSelect={setSelectedLevel} />
+        <LevelSelector levels={levels} onSelect={setSelectedLevel} t={t} />
       </div>
     );
   }
 
   if (!selectedSubject) {
-    // Filter subjects by level's subjectIds
     const levelSubjects = selectedLevel.subjectIds?.length > 0
       ? subjects.filter(s => selectedLevel.subjectIds.includes(s.id))
       : subjects;
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Lessons</h1>
-          <p className="text-sm text-muted-foreground">Manage lessons by level and subject</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('lessons.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('lessons.subtitle')}</p>
         </div>
-        <SubjectSelector subjects={levelSubjects} levelName={selectedLevel.name} onSelect={setSelectedSubject} onBack={() => setSelectedLevel(null)} />
+        <SubjectSelector subjects={levelSubjects} levelName={selectedLevel.name} onSelect={setSelectedSubject} onBack={() => setSelectedLevel(null)} t={t} />
       </div>
     );
   }
@@ -543,12 +543,12 @@ export default function Lessons() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setSelectedSubject(null)}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Lessons</h1>
-            <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{t('lessons.title')}</h1>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="outline" className="cursor-pointer" onClick={() => { setSelectedLevel(null); setSelectedSubject(null); }}>{selectedLevel.name}</Badge>
               <ChevronRight className="h-3 w-3 text-muted-foreground" />
               <Badge variant="secondary" className="cursor-pointer" onClick={() => setSelectedSubject(null)}>{selectedSubject.name}</Badge>
@@ -558,16 +558,16 @@ export default function Lessons() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => {
             const cols = [
-              { key: 'name' as const, label: 'Name' },
-              { key: 'description' as const, label: 'Description' },
-              { key: 'unitId' as const, label: 'Unit', render: (l: Lesson) => allUnits.find(u => u.id === l.unitId)?.name ?? '' },
-              { key: 'order' as const, label: 'Order' },
+              { key: 'name' as const, label: t('common.name') },
+              { key: 'description' as const, label: t('common.description') },
+              { key: 'unitId' as const, label: t('lessons.addUnit').replace(/^.*\s/, ''), render: (l: Lesson) => allUnits.find(u => u.id === l.unitId)?.name ?? '' },
+              { key: 'order' as const, label: t('lessons.order') },
             ];
             exportToExcel(allLessons, cols, `lessons-${selectedLevel.name}-${selectedSubject.name}`);
-          }}><Download className="h-4 w-4 mr-2" />Export</Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-2" />Import</Button>
-          <Button variant="outline" onClick={openCreateUnit}><FolderPlus className="h-4 w-4 mr-2" /> Add Unit</Button>
-          <Button onClick={openCreateLesson}><Plus className="h-4 w-4 mr-2" /> Add Lesson</Button>
+          }}><Download className="h-4 w-4 mr-1" /><span className="hidden sm:inline">{t('common.export')}</span></Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" /><span className="hidden sm:inline">{t('common.import')}</span></Button>
+          <Button variant="outline" size="sm" onClick={openCreateUnit}><FolderPlus className="h-4 w-4 mr-1" /><span className="hidden sm:inline">{t('lessons.addUnit')}</span></Button>
+          <Button size="sm" onClick={openCreateLesson}><Plus className="h-4 w-4 mr-1" /><span className="hidden sm:inline">{t('lessons.addLesson')}</span></Button>
         </div>
       </div>
 
@@ -587,7 +587,7 @@ export default function Lessons() {
                 <DraggableUnit key={unit.id} unit={unit} onUpdateUnit={handleInlineUpdateUnit} onDeleteUnit={id => deleteUnitMut.mutate(id)}>
                   <SortableContext items={containers[unit.id] ?? []} strategy={verticalListSortingStrategy}>
                     {unitLessons.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">Drop lessons here or add new ones</p>
+                      <p className="text-sm text-muted-foreground text-center py-4">{t('lessons.dropHere')}</p>
                     ) : (
                       unitLessons.map(lesson => (
                         <SortableLessonItem
@@ -596,6 +596,7 @@ export default function Lessons() {
                           onUpdate={handleInlineUpdateLesson}
                           onDelete={id => deleteLessonMut.mutate(id)}
                           onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                          t={t}
                         />
                       ))
                     )}
@@ -610,7 +611,7 @@ export default function Lessons() {
         {ungroupedLessons.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Ungrouped Lessons</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">{t('lessons.ungrouped')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <SortableContext items={containers['__ungrouped__'] ?? []} strategy={verticalListSortingStrategy}>
@@ -621,6 +622,7 @@ export default function Lessons() {
                     onUpdate={handleInlineUpdateLesson}
                     onDelete={id => deleteLessonMut.mutate(id)}
                     onViewQuestions={id => navigate(`/questions?lessonId=${id}`)}
+                    t={t}
                   />
                 ))}
               </SortableContext>
@@ -637,7 +639,7 @@ export default function Lessons() {
       {allUnits.length === 0 && ungroupedLessons.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">No lessons yet. Start by creating a unit, then add lessons to it.</p>
+            <p className="text-muted-foreground">{t('lessons.noLessons')}</p>
           </CardContent>
         </Card>
       )}
@@ -646,16 +648,16 @@ export default function Lessons() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Lesson' : 'Add Lesson'}</DialogTitle>
+            <DialogTitle>{editing ? t('lessons.editLesson') : t('lessons.addLesson')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Lesson name" /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description" /></div>
+            <div><Label>{t('common.name')} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('lessons.lessonName')} /></div>
+            <div><Label>{t('common.description')}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder={t('lessons.briefDescription')} /></div>
             <div>
-              <Label>Unit</Label>
+              <Label>{t('lessons.addUnit').split(' ').pop()}</Label>
               <div className="flex gap-2">
                 <Select value={form.unitId} onValueChange={v => setForm(f => ({ ...f, unitId: v }))}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={t('lessons.selectUnit')} /></SelectTrigger>
                   <SelectContent>
                     {allUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                   </SelectContent>
@@ -667,12 +669,12 @@ export default function Lessons() {
                 }}><FolderPlus className="h-4 w-4" /></Button>
               </div>
             </div>
-            <div><Label>Order</Label><Input type="number" min={1} value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
+            <div><Label>{t('lessons.order')}</Label><Input type="number" min={1} value={form.order} onChange={e => setForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleSubmitLesson} disabled={createLessonMut.isPending || updateLessonMut.isPending}>
-              {editing ? 'Update' : 'Create'}
+              {editing ? t('common.edit') : t('common.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -701,7 +703,7 @@ export default function Lessons() {
             });
             count++;
           });
-          toast({ title: `Imported ${count} lessons` });
+          toast({ title: t('lessons.importedCount', { count }) });
         }}
       />
 
@@ -716,11 +718,11 @@ export default function Lessons() {
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Unit</DialogTitle>
+            <DialogTitle>{t('lessons.addUnit')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Unit Name *</Label><Input value={unitForm.name} onChange={e => setUnitForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Unit 1: Basics" /></div>
-            <div><Label>Order</Label><Input type="number" min={1} value={unitForm.order} onChange={e => setUnitForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
+            <div><Label>{t('lessons.unitName')} *</Label><Input value={unitForm.name} onChange={e => setUnitForm(f => ({ ...f, name: e.target.value }))} placeholder={t('lessons.unitExample')} /></div>
+            <div><Label>{t('lessons.order')}</Label><Input type="number" min={1} value={unitForm.order} onChange={e => setUnitForm(f => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -730,8 +732,8 @@ export default function Lessons() {
                 setDialogOpen(true);
                 setPendingLessonForm(null);
               }
-            }}>Cancel</Button>
-            <Button onClick={handleSubmitUnit} disabled={createUnitMut.isPending}>Create</Button>
+            }}>{t('common.cancel')}</Button>
+            <Button onClick={handleSubmitUnit} disabled={createUnitMut.isPending}>{t('common.create')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

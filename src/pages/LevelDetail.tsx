@@ -1,17 +1,20 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Award } from 'lucide-react';
-import { MarkStatsPanel } from '@/components/MarkStatsPanel';
+import { ArrowLeft, BarChart3, UserX, Clock } from 'lucide-react';
 import { levelApi, classApi, subjectApi, teacherApi, studentApi, managerApi } from '@/services/api';
+import { MarkStatisticsPanel } from '@/components/MarkStatisticsPanel';
+import { GroupAttendanceTab } from '@/components/GroupAttendanceTab';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTranslation } from 'react-i18next';
 import type { Teacher, SchoolClass, Student, Manager } from '@/types';
 
 export default function LevelDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -31,11 +34,9 @@ export default function LevelDetail() {
 
   const levelClasses = allClasses.filter((c: SchoolClass) => c.levelId === id);
   const levelClassIds = levelClasses.map((c: SchoolClass) => c.id);
-
-  // Level's subjects from the subjectIds relation
+  const levelStudents = allStudents.filter((s: Student) => s.levelId === id);
   const levelSubjects = allSubjects.filter(s => (level?.subjectIds || []).includes(s.id));
 
-  // For each subject, find teachers who teach it in this level's classes
   const getTeachersForSubject = (subjectId: string) => {
     return allTeachers.filter((t: Teacher) =>
       t.classAssignments.some(ca =>
@@ -44,7 +45,6 @@ export default function LevelDetail() {
     );
   };
 
-  // For a teacher+subject combo, get classes in this level
   const getClassesForTeacherSubject = (teacher: Teacher, subjectId: string) => {
     return teacher.classAssignments
       .filter(ca => levelClassIds.includes(ca.classId) && ca.subjectIds.includes(subjectId))
@@ -53,11 +53,11 @@ export default function LevelDetail() {
   };
 
   if (isLoading) {
-    return (<div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>);
+    return <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   if (!level) {
-    return (<div className="text-center py-12"><p className="text-muted-foreground">Level not found</p><Button variant="outline" className="mt-4" onClick={() => navigate('/levels')}>Back to Levels</Button></div>);
+    return <div className="text-center py-12"><p className="text-muted-foreground">{t('levels.notFound')}</p><Button variant="outline" className="mt-4" onClick={() => navigate('/levels')}>{t('common.backTo', { entity: t('nav.levels') })}</Button></div>;
   }
 
   return (
@@ -71,28 +71,30 @@ export default function LevelDetail() {
       </div>
 
       <Tabs defaultValue="information">
-        <TabsList>
-          <TabsTrigger value="information">Information</TabsTrigger>
-          <TabsTrigger value="subjects">Subjects</TabsTrigger>
-          <TabsTrigger value="classes">Classes</TabsTrigger>
-          <TabsTrigger value="marks" className="gap-2"><Award className="h-4 w-4" />Mark Statistics</TabsTrigger>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="information">{t('tabs.info')}</TabsTrigger>
+          <TabsTrigger value="subjects">{t('tabs.subjects')}</TabsTrigger>
+          <TabsTrigger value="classes">{t('tabs.classes')}</TabsTrigger>
+          <TabsTrigger value="absences" className="gap-2"><UserX className="h-4 w-4" />{t('tabs.absences')}</TabsTrigger>
+          <TabsTrigger value="lates" className="gap-2"><Clock className="h-4 w-4" />{t('tabs.lates')}</TabsTrigger>
+          <TabsTrigger value="marks" className="gap-2"><BarChart3 className="h-4 w-4" />{t('tabs.markStats')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="information">
           <Card>
-            <CardHeader><CardTitle>Level Information</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('levels.levelInfo')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><p className="text-sm text-muted-foreground">Name</p><p className="font-medium">{level.name}</p></div>
-                <div><p className="text-sm text-muted-foreground">Description</p><p className="font-medium">{level.description || '—'}</p></div>
+                <div><p className="text-sm text-muted-foreground">{t('common.name')}</p><p className="font-medium">{level.name}</p></div>
+                <div><p className="text-sm text-muted-foreground">{t('common.description')}</p><p className="font-medium">{level.description || '—'}</p></div>
               </div>
               <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground mb-2">Statistics</p>
+                <p className="text-sm text-muted-foreground mb-2">{t('common.statistics')}</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelClasses.length}</p><p className="text-xs text-muted-foreground">Classes</p></CardContent></Card>
-                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{allStudents.filter((s: Student) => s.levelId === id).length}</p><p className="text-xs text-muted-foreground">Students</p></CardContent></Card>
-                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelSubjects.length}</p><p className="text-xs text-muted-foreground">Subjects</p></CardContent></Card>
-                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelClasses.reduce((sum, c) => sum + c.capacity, 0)}</p><p className="text-xs text-muted-foreground">Total Capacity</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelClasses.length}</p><p className="text-xs text-muted-foreground">{t('common.class')}</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelStudents.length}</p><p className="text-xs text-muted-foreground">{t('common.students')}</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelSubjects.length}</p><p className="text-xs text-muted-foreground">{t('nav.subjects')}</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 text-center"><p className="text-2xl font-bold">{levelClasses.reduce((sum, c) => sum + c.capacity, 0)}</p><p className="text-xs text-muted-foreground">{t('common.totalCapacity')}</p></CardContent></Card>
                 </div>
               </div>
             </CardContent>
@@ -101,17 +103,17 @@ export default function LevelDetail() {
 
         <TabsContent value="subjects">
           <Card>
-            <CardHeader><CardTitle>Subjects in {level.name}</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('levels.subjectsIn', { name: level.name })}</CardTitle></CardHeader>
             <CardContent>
               {levelSubjects.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No subjects assigned to this level</p>
+                <p className="text-muted-foreground text-center py-8">{t('subjects.noSubjectsAssigned')}</p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Teachers & Classes</TableHead>
+                      <TableHead>{t('common.subject')}</TableHead>
+                      <TableHead>{t('common.code')}</TableHead>
+                      <TableHead>{t('common.teachersClasses')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -123,15 +125,15 @@ export default function LevelDetail() {
                           <TableCell><Badge variant="outline">{subject.code}</Badge></TableCell>
                           <TableCell>
                             {subjectTeachers.length === 0 ? (
-                              <span className="text-muted-foreground text-sm">No teachers</span>
+                              <span className="text-muted-foreground text-sm">{t('common.noTeachers')}</span>
                             ) : (
                               <div className="space-y-1">
-                                {subjectTeachers.map((t: Teacher) => {
-                                  const classes = getClassesForTeacherSubject(t, subject.id);
+                                {subjectTeachers.map((tea: Teacher) => {
+                                  const classes = getClassesForTeacherSubject(tea, subject.id);
                                   return (
-                                    <div key={t.id} className="flex items-center gap-2 flex-wrap">
-                                      <Badge variant="secondary" className="cursor-pointer" onClick={e => { e.stopPropagation(); navigate(`/teachers/${t.id}`); }}>
-                                        {t.firstname} {t.lastname}
+                                    <div key={tea.id} className="flex items-center gap-2 flex-wrap">
+                                      <Badge variant="secondary" className="cursor-pointer" onClick={e => { e.stopPropagation(); navigate(`/teachers/${tea.id}`); }}>
+                                        {tea.firstname} {tea.lastname}
                                       </Badge>
                                       {classes.map(c => (
                                         <Badge key={c.id} variant="outline" className="text-xs">{c.name}</Badge>
@@ -154,19 +156,19 @@ export default function LevelDetail() {
 
         <TabsContent value="classes">
           <Card>
-            <CardHeader><CardTitle>Classes in {level.name}</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('classes.classesIn', { name: level.name })}</CardTitle></CardHeader>
             <CardContent>
               {levelClasses.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No classes in this level</p>
+                <p className="text-muted-foreground text-center py-8">{t('common.noClasses')}</p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Section</TableHead>
-                      <TableHead>Capacity</TableHead>
-                      <TableHead>Active Students</TableHead>
-                      <TableHead>Managers</TableHead>
+                      <TableHead>{t('common.class')}</TableHead>
+                      <TableHead>{t('common.section')}</TableHead>
+                      <TableHead>{t('common.capacity')}</TableHead>
+                      <TableHead>{t('common.activeStudents')}</TableHead>
+                      <TableHead>{t('common.managers')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -189,7 +191,7 @@ export default function LevelDetail() {
                                 <Badge key={m.id} variant="outline" className="cursor-pointer" onClick={() => navigate(`/managers/${m.id}`)}>
                                   {m.firstname} {m.lastname}
                                 </Badge>
-                              )) : <span className="text-muted-foreground text-sm">None</span>}
+                              )) : <span className="text-muted-foreground text-sm">{t('common.none')}</span>}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -201,8 +203,29 @@ export default function LevelDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="absences">
+          <GroupAttendanceTab
+            students={levelStudents.map(s => ({ id: s.id, firstname: s.firstname, lastname: s.lastname }))}
+            recordType="absences"
+            title={level.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="lates">
+          <GroupAttendanceTab
+            students={levelStudents.map(s => ({ id: s.id, firstname: s.firstname, lastname: s.lastname }))}
+            recordType="lates"
+            title={level.name}
+          />
+        </TabsContent>
+
         <TabsContent value="marks">
-          <MarkStatsPanel fixedLevelId={id} title={`Mark Statistics for ${level.name}`} />
+          <MarkStatisticsPanel
+            fixedLevelId={id!}
+            showFilters={true}
+            title={`${t('marks.statistics')} — ${level.name}`}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -17,8 +17,10 @@ import { Input } from '@/components/ui/input';
 import { DataTable, type Column } from '@/components/DataTable';
 import { DynamicFormFields } from '@/components/DynamicFormFields';
 import { ExcelImportDialog } from '@/components/ExcelImportDialog';
+import { useTranslation } from 'react-i18next';
 
 export default function ParentsPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -30,16 +32,16 @@ export default function ParentsPage() {
   const { data: tplRes } = useQuery({ queryKey: ['templates'], queryFn: () => templateApi.get() });
   const fields = tplRes?.data?.parent?.fields || [];
 
-  const createMut = useMutation({ mutationFn: (d: Partial<Parent>) => parentApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); setDialogOpen(false); toast.success('Parent created'); } });
-  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => parentApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); setDialogOpen(false); toast.success('Parent updated'); } });
-  const deleteMut = useMutation({ mutationFn: (id: string) => parentApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); toast.success('Parent deleted'); } });
+  const createMut = useMutation({ mutationFn: (d: Partial<Parent>) => parentApi.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); setDialogOpen(false); toast.success(t('parents.created')); } });
+  const updateMut = useMutation({ mutationFn: ({ id, ...d }: any) => parentApi.update(id, d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); setDialogOpen(false); toast.success(t('parents.updated')); } });
+  const deleteMut = useMutation({ mutationFn: (id: string) => parentApi.delete(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['parents'] }); toast.success(t('parents.deleted')); } });
 
   const columns: Column<Parent>[] = useMemo(() => [
-    { key: 'firstname', label: 'First Name' },
-    { key: 'lastname', label: 'Last Name' },
-    { key: 'studentIds', label: 'Children', render: p => `${p.studentIds.length} student(s)` },
+    { key: 'firstname', label: t('common.firstName') },
+    { key: 'lastname', label: t('common.lastName') },
+    { key: 'studentIds', label: t('common.children'), render: p => t('parents.studentCount', { count: p.studentIds.length }) },
     ...fields.filter(f => f.visible).slice(0, 2).map(f => ({ key: f.name, label: f.label, render: (p: Parent) => String(p.dynamicFields?.[f.name] ?? '—') })),
-  ], [fields]);
+  ], [fields, t]);
 
   const handleSubmit = (data: any) => { const { firstname, lastname, ...rest } = data; const payload = { firstname, lastname, studentIds: editing?.studentIds || [], dynamicFields: rest }; editing ? updateMut.mutate({ id: editing.id, ...payload }) : createMut.mutate(payload); };
 
@@ -49,28 +51,27 @@ export default function ParentsPage() {
       const p: Partial<Parent> = { firstname: row['First Name'] || row['firstname'] || '', lastname: row['Last Name'] || row['lastname'] || '', studentIds: [], dynamicFields: {} };
       if (p.firstname && p.lastname) { createMut.mutate(p); count++; }
     });
-    toast.success(`Imported ${count} parents`);
+    toast.success(t('common.imported', { count, entity: t('parents.title') }));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight">Parents</h1><p className="text-muted-foreground">{res?.total ?? 0} parents</p></div>
-        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Parent</Button>
+        <div><h1 className="text-2xl font-bold tracking-tight">{t('parents.title')}</h1><p className="text-muted-foreground">{t('parents.count', { count: res?.total ?? 0 })}</p></div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="me-2 h-4 w-4" />{t('parents.addParent')}</Button>
       </div>
-      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder="Search parents..." onView={p => navigate(`/parents/${p.id}`)} onEdit={p => { setEditing(p); setDialogOpen(true); }} onDelete={p => setDeleteTarget(p)} exportFilename="parents" onImportClick={() => setImportOpen(true)} />
-      <SimpleEntityDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={handleSubmit} title="Parent" />
+      <DataTable data={res?.data || []} columns={columns} isLoading={isLoading} searchPlaceholder={t('parents.searchParents')} onView={p => navigate(`/parents/${p.id}`)} onEdit={p => { setEditing(p); setDialogOpen(true); }} onDelete={p => setDeleteTarget(p)} exportFilename="parents" onImportClick={() => setImportOpen(true)} />
+      <SimpleEntityDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} fields={fields} isSubmitting={createMut.isPending || updateMut.isPending} onSubmit={handleSubmit} title={t('common.parent')} t={t} />
       <ExcelImportDialog open={importOpen} onOpenChange={setImportOpen} onImport={handleImport} expectedColumns={['First Name', 'Last Name']} />
       <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete parent?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {deleteTarget?.firstname} {deleteTarget?.lastname}.</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t('common.deleteConfirmTitle', { entity: t('common.parent') })}</AlertDialogTitle><AlertDialogDescription>{t('common.deleteConfirmDesc', { name: `${deleteTarget?.firstname} ${deleteTarget?.lastname}` })}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction onClick={() => { deleteMut.mutate(deleteTarget!.id); setDeleteTarget(null); }}>{t('common.delete')}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div>
   );
 }
 
-
-function SimpleEntityDialog({ open, onOpenChange, editing, fields, isSubmitting, onSubmit, title }: any) {
+function SimpleEntityDialog({ open, onOpenChange, editing, fields, isSubmitting, onSubmit, title, t }: any) {
   const schema = z.object({
     firstname: z.string().min(1, 'Required'),
     lastname: z.string().min(1, 'Required'),
@@ -78,21 +79,12 @@ function SimpleEntityDialog({ open, onOpenChange, editing, fields, isSubmitting,
   });
   const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues: {
-      firstname: '',
-      lastname: '',
-      ...getDynamicDefaults(fields)
-    }
+    defaultValues: { firstname: '', lastname: '', ...getDynamicDefaults(fields) }
   });
 
-  // Reset form when dialog opens or when editing/fields change
   useEffect(() => {
     if (open) {
-      form.reset({
-        firstname: editing?.firstname || '',
-        lastname: editing?.lastname || '',
-        ...getDynamicDefaults(fields, editing?.dynamicFields)
-      });
+      form.reset({ firstname: editing?.firstname || '', lastname: editing?.lastname || '', ...getDynamicDefaults(fields, editing?.dynamicFields) });
     }
   }, [open, editing, fields, form]);
 
@@ -100,30 +92,22 @@ function SimpleEntityDialog({ open, onOpenChange, editing, fields, isSubmitting,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? `Edit ${title}` : `Add ${title}`}</DialogTitle>
+          <DialogTitle>{editing ? `${t('common.edit')} ${title}` : `${t('common.add')} ${title}`}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="firstname" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>First Name *</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>{t('common.firstName')} *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="lastname" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Last Name *</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>{t('common.lastName')} *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
             <DynamicFormFields fields={fields} control={form.control} />
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('common.saving') : editing ? t('common.update') : t('common.create')}</Button>
             </div>
           </form>
         </Form>
