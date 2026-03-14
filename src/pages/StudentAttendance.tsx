@@ -53,6 +53,9 @@ export default function StudentAttendance() {
   const [formReason, setFormReason] = useState('');
   const [formPeriod, setFormPeriod] = useState(10);
 
+  const [bulkRowCount, setBulkRowCount] = useState(3);
+  const [bulkShared, setBulkShared] = useState(true);
+  const [bulkSharedDate, setBulkSharedDate] = useState(today());
   const [bulkRows, setBulkRows] = useState<{ studentId: string; date: string; isJustified: boolean; reason?: string; period?: number }[]>([{ studentId: '', date: today(), isJustified: false, period: 10 }]);
 
   const { data: studentsRes } = useQuery({ queryKey: ['students-all'], queryFn: () => studentApi.getAll({ page: 1, limit: 1000 }) });
