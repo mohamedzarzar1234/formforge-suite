@@ -164,6 +164,10 @@ export default function TeacherAttendance() {
   const addBulkRow = () => setBulkRows(prev => [...prev, { teacherId: '', session: sessionOptions[0], date: today(), isJustified: false, period: 10 }]);
   const removeBulkRow = (idx: number) => setBulkRows(prev => prev.filter((_, i) => i !== idx));
   const updateBulkRow = (idx: number, field: string, value: any) => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  const generateBulkRows = () => {
+    const count = Math.max(1, Math.min(50, bulkRowCount));
+    setBulkRows(Array.from({ length: count }, () => ({ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false, period: 10 })));
+  };
 
   const activeView = tab === 'absences' ? absView : lateView;
 
