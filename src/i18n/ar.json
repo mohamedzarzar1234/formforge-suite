@@ -185,7 +185,13 @@
     "none": "لا يوجد",
     "noTeachers": "لا يوجد معلمون",
     "noClasses": "لا يوجد فصول",
-    "teachersClasses": "المعلمون والفصول"
+    "teachersClasses": "المعلمون والفصول",
+    "select": "اختر",
+    "numberOfRows": "عدد الصفوف",
+    "sharedSettings": "استخدام إعدادات مشتركة لجميع الصفوف",
+    "generateRows": "إنشاء الصفوف",
+    "from": "من",
+    "to": "إلى"
   },
   "nav": {
     "dashboard": "لوحة التحكم",

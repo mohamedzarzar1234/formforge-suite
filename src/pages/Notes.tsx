@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { FilterBar } from '@/components/FilterBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -37,6 +38,11 @@ export default function Notes() {
   const [formDesc, setFormDesc] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
 
+  // Bulk state
+  const [bulkRowCount, setBulkRowCount] = useState(3);
+  const [bulkShared, setBulkShared] = useState(true);
+  const [bulkSharedTemplateId, setBulkSharedTemplateId] = useState('');
+  const [bulkSharedDate, setBulkSharedDate] = useState(today());
   const [bulkRows, setBulkRows] = useState<{ templateId: string; studentIds: string[]; date: string; description: string }[]>([
     { templateId: '', studentIds: [], date: today(), description: '' }
   ]);
@@ -82,8 +88,17 @@ export default function Notes() {
   };
 
   const openBulk = () => {
-    setBulkRows([{ templateId: '', studentIds: [], date: today(), description: '' }]);
+    setBulkShared(true);
+    setBulkSharedTemplateId('');
+    setBulkSharedDate(today());
+    setBulkRowCount(3);
+    setBulkRows(Array.from({ length: 3 }, () => ({ templateId: '', studentIds: [], date: today(), description: '' })));
     setBulkOpen(true);
+  };
+
+  const generateBulkRows = () => {
+    const count = Math.max(1, Math.min(50, bulkRowCount));
+    setBulkRows(Array.from({ length: count }, () => ({ templateId: '', studentIds: [], date: today(), description: '' })));
   };
 
   const handleSubmit = () => {
@@ -93,9 +108,15 @@ export default function Notes() {
   };
 
   const handleBulkSubmit = () => {
-    const valid = bulkRows.filter(r => r.templateId && r.studentIds.length > 0);
+    const rows = bulkRows.map(r => ({
+      templateId: bulkShared ? bulkSharedTemplateId : r.templateId,
+      studentIds: r.studentIds,
+      date: bulkShared ? bulkSharedDate : r.date,
+      description: r.description || undefined,
+    }));
+    const valid = rows.filter(r => r.templateId && r.studentIds.length > 0);
     if (!valid.length) { toast.error(t('notes.addValidRow')); return; }
-    bulkMut.mutate(valid.map(r => ({ templateId: r.templateId, studentIds: r.studentIds, date: r.date, description: r.description || undefined })));
+    bulkMut.mutate(valid);
   };
 
   const toggleStudentInForm = (id: string) => {
@@ -104,7 +125,11 @@ export default function Notes() {
 
   const handleScanSingle = (ids: string[]) => { if (ids[0]) { setFormStudentIds([ids[0]]); setDialogOpen(true); } };
   const handleScanBulk = (ids: string[]) => {
+    setBulkShared(true);
+    setBulkSharedTemplateId('');
+    setBulkSharedDate(today());
     setBulkRows(ids.map(id => ({ templateId: '', studentIds: [id], date: today(), description: '' })));
+    setBulkRowCount(ids.length);
     setBulkOpen(true);
   };
 
@@ -154,7 +179,7 @@ export default function Notes() {
                 <TableRow>
                   <TableHead>{t('common.date')}</TableHead>
                   <TableHead>{t('common.type')}</TableHead>
-                  <TableHead>{t('sidebar.students')}</TableHead>
+                  <TableHead>{t('common.students')}</TableHead>
                   <TableHead>{t('common.description')}</TableHead>
                   <TableHead className="w-16">{t('common.actions')}</TableHead>
                 </TableRow>
@@ -200,7 +225,7 @@ export default function Notes() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t('sidebar.students')}</Label>
+              <Label>{t('common.students')}</Label>
               <Input placeholder={t('notes.searchStudents')} value={studentSearch} onChange={e => setStudentSearch(e.target.value)} />
               <div className="border rounded-md max-h-40 overflow-y-auto p-2 space-y-1">
                 {filteredStudents.map(s => (
@@ -241,35 +266,74 @@ export default function Notes() {
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t('notes.bulkAddNotes')}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            {bulkRows.map((row, idx) => (
-              <div key={idx} className="flex gap-2 items-end border-b pb-3">
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">{t('common.type')}</Label>
-                  <Select value={row.templateId} onValueChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, templateId: v } : r))}>
+          <div className="space-y-4">
+            {/* Row count */}
+            <div className="flex gap-3 items-end flex-wrap">
+              <div className="space-y-1">
+                <Label className="text-xs">{t('common.numberOfRows')}</Label>
+                <Input type="number" min={1} max={50} value={bulkRowCount} onChange={e => setBulkRowCount(Math.max(1, Number(e.target.value)))} className="w-24" />
+              </div>
+              <Button variant="outline" size="sm" onClick={generateBulkRows}>{t('common.generateRows')}</Button>
+            </div>
+
+            {/* Shared toggle */}
+            <div className="flex items-center gap-2">
+              <Switch checked={bulkShared} onCheckedChange={setBulkShared} />
+              <Label className="text-sm">{t('common.sharedSettings')}</Label>
+            </div>
+
+            {/* Shared fields */}
+            {bulkShared && (
+              <div className="flex gap-3 flex-wrap p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-1 flex-1 min-w-[150px]">
+                  <Label className="text-xs">{t('notes.noteType')}</Label>
+                  <Select value={bulkSharedTemplateId} onValueChange={setBulkSharedTemplateId}>
                     <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
                     <SelectContent>{templates.map(tpl => <SelectItem key={tpl.id} value={tpl.id}>{tpl.title}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">{t('common.student')}</Label>
-                  <Select value={row.studentIds[0] || ''} onValueChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, studentIds: [v] } : r))}>
-                    <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
-                    <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40 space-y-1">
+                <div className="space-y-1">
                   <Label className="text-xs">{t('common.date')}</Label>
-                  <DatePickerField value={row.date} onChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, date: v } : r))} className="w-full" />
+                  <DatePickerField value={bulkSharedDate} onChange={setBulkSharedDate} className="w-40" />
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setBulkRows(prev => prev.filter((_, i) => i !== idx))} disabled={bulkRows.length <= 1}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
               </div>
-            ))}
-            <Button variant="outline" size="sm" onClick={() => setBulkRows(prev => [...prev, { templateId: '', studentIds: [], date: today(), description: '' }])}>
-              <Plus className="me-2 h-4 w-4" />{t('notes.addRow')}
-            </Button>
+            )}
+
+            {/* Rows */}
+            <div className="space-y-2">
+              {bulkRows.map((row, idx) => (
+                <div key={idx} className="flex gap-2 items-end flex-wrap border-b border-border pb-2">
+                  <div className="flex-1 min-w-[150px] space-y-1">
+                    <Label className="text-xs">{t('common.student')}</Label>
+                    <Select value={row.studentIds[0] || ''} onValueChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, studentIds: [v] } : r))}>
+                      <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
+                      <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  {!bulkShared && (
+                    <>
+                      <div className="flex-1 min-w-[150px] space-y-1">
+                        <Label className="text-xs">{t('common.type')}</Label>
+                        <Select value={row.templateId} onValueChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, templateId: v } : r))}>
+                          <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
+                          <SelectContent>{templates.map(tpl => <SelectItem key={tpl.id} value={tpl.id}>{tpl.title}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t('common.date')}</Label>
+                        <DatePickerField value={row.date} onChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, date: v } : r))} className="w-36" />
+                      </div>
+                    </>
+                  )}
+                  <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setBulkRows(prev => prev.filter((_, i) => i !== idx))} disabled={bulkRows.length <= 1}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setBulkRows(prev => [...prev, { templateId: '', studentIds: [], date: today(), description: '' }])}>
+                <Plus className="me-2 h-4 w-4" />{t('notes.addRow')}
+              </Button>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkOpen(false)}>{t('common.cancel')}</Button>

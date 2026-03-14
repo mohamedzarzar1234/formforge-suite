@@ -185,7 +185,13 @@
     "none": "None",
     "noTeachers": "No teachers",
     "noClasses": "No classes",
-    "teachersClasses": "Teachers & Classes"
+    "teachersClasses": "Teachers & Classes",
+    "select": "Select",
+    "numberOfRows": "Number of Rows",
+    "sharedSettings": "Use shared settings for all rows",
+    "generateRows": "Generate Rows",
+    "from": "From",
+    "to": "To"
   },
   "nav": {
     "dashboard": "Dashboard",
