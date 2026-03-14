@@ -334,20 +334,32 @@ export default function TeacherAttendance() {
       <Dialog open={bulkAbsDialog} onOpenChange={setBulkAbsDialog}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t('attendance.bulkAddAbsences')}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="flex gap-3 items-end flex-wrap">
+              <div className="space-y-1"><Label className="text-xs">{t('common.numberOfRows')}</Label><Input type="number" min={1} max={50} value={bulkRowCount} onChange={e => setBulkRowCount(Math.max(1, Number(e.target.value)))} className="w-24" /></div>
+              <Button variant="outline" size="sm" onClick={generateBulkRows}>{t('common.generateRows')}</Button>
+            </div>
+            <div className="flex items-center gap-2"><Switch checked={bulkShared} onCheckedChange={setBulkShared} /><Label className="text-sm">{t('common.sharedSettings')}</Label></div>
+            {bulkShared && (
+              <div className="flex gap-3 flex-wrap p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-1"><Label className="text-xs">{t('common.date')}</Label><DatePickerField value={bulkSharedDate} onChange={setBulkSharedDate} className="w-40" /></div>
+              </div>
+            )}
+            <div className="space-y-2">
             {bulkRows.map((row, idx) => (
               <div key={idx} className="flex gap-2 items-end flex-wrap border-b border-border pb-2">
-                <div className="flex-1 min-w-[140px] space-y-1"><Label className="text-xs">{t('common.teacher')}</Label><Select value={row.teacherId} onValueChange={v => updateBulkRow(idx, 'teacherId', v)}><SelectTrigger><SelectValue placeholder={t('common.selectTeacher')} /></SelectTrigger><SelectContent>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent></Select></div>
+                <div className="flex-1 min-w-[140px] space-y-1"><Label className="text-xs">{t('common.teacher')}</Label><Select value={row.teacherId} onValueChange={v => updateBulkRow(idx, 'teacherId', v)}><SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger><SelectContent>{teachers.map(te => <SelectItem key={te.id} value={te.id}>{te.firstname} {te.lastname}</SelectItem>)}</SelectContent></Select></div>
                 <div className="space-y-1"><Label className="text-xs">{t('common.session')}</Label><Select value={row.session} onValueChange={v => updateBulkRow(idx, 'session', v)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent>{sessionOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1"><Label className="text-xs">{t('common.date')}</Label><DatePickerField value={row.date} onChange={v => updateBulkRow(idx, 'date', v)} className="w-36" /></div>
-                <div className="flex items-center gap-1 pb-1"><Switch checked={row.isJustified} onCheckedChange={v => { updateBulkRow(idx, 'isJustified', v); if (!v) updateBulkRow(idx, 'reason', ''); }} /><Label className="text-xs">J</Label></div>
+                <div className="flex items-center gap-1 pb-1"><Switch checked={row.isJustified} onCheckedChange={v => { updateBulkRow(idx, 'isJustified', v); if (!v) updateBulkRow(idx, 'reason', ''); }} /><Label className="text-xs">{t('common.justified')}</Label></div>
+                {!bulkShared && <div className="space-y-1"><Label className="text-xs">{t('common.date')}</Label><DatePickerField value={row.date} onChange={v => updateBulkRow(idx, 'date', v)} className="w-36" /></div>}
                 {row.isJustified && <div className="w-full space-y-1"><Label className="text-xs">{t('common.reason')}</Label><Input value={row.reason || ''} onChange={e => updateBulkRow(idx, 'reason', e.target.value)} placeholder={t('common.reason')} /></div>}
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removeBulkRow(idx)} disabled={bulkRows.length === 1}><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
             <Button variant="outline" size="sm" onClick={addBulkRow}><Plus className="me-2 h-4 w-4" />{t('common.addRow')}</Button>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setBulkAbsDialog(false)}>{t('common.cancel')}</Button><Button onClick={() => { const valid = bulkRows.filter(r => r.teacherId); if (!valid.length) { toast.error(t('attendance.addValidRow')); return; } bulkAbsMut.mutate(valid.map(r => ({ teacherId: r.teacherId, session: r.session, date: r.date, isJustified: r.isJustified, reason: r.isJustified ? r.reason : undefined }))); }}>{t('attendance.addCountAbsences', { count: bulkRows.filter(r => r.teacherId).length })}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setBulkAbsDialog(false)}>{t('common.cancel')}</Button><Button onClick={() => { const valid = bulkRows.filter(r => r.teacherId); if (!valid.length) { toast.error(t('attendance.addValidRow')); return; } bulkAbsMut.mutate(valid.map(r => ({ teacherId: r.teacherId, session: r.session, date: bulkShared ? bulkSharedDate : r.date, isJustified: r.isJustified, reason: r.isJustified ? r.reason : undefined }))); }}>{t('attendance.addCountAbsences', { count: bulkRows.filter(r => r.teacherId).length })}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
