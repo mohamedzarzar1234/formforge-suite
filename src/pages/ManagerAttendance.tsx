@@ -52,6 +52,9 @@ export default function ManagerAttendance() {
   const [formReason, setFormReason] = useState('');
   const [formPeriod, setFormPeriod] = useState(10);
 
+  const [bulkRowCount, setBulkRowCount] = useState(3);
+  const [bulkShared, setBulkShared] = useState(true);
+  const [bulkSharedDate, setBulkSharedDate] = useState(today());
   const [bulkRows, setBulkRows] = useState<{ managerId: string; date: string; isJustified: boolean; reason?: string; period?: number }[]>([{ managerId: '', date: today(), isJustified: false, period: 10 }]);
 
   const { data: managersRes } = useQuery({ queryKey: ['managers-all'], queryFn: () => managerApi.getAll({ page: 1, limit: 1000 }) });
