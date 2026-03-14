@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { FilterBar } from '@/components/FilterBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -34,6 +35,11 @@ export default function Points() {
   const [formAmount, setFormAmount] = useState(1);
   const [formDate, setFormDate] = useState(today());
 
+  // Bulk state
+  const [bulkRowCount, setBulkRowCount] = useState(3);
+  const [bulkShared, setBulkShared] = useState(true);
+  const [bulkSharedType, setBulkSharedType] = useState<'positive' | 'negative'>('positive');
+  const [bulkSharedDate, setBulkSharedDate] = useState(today());
   const [bulkRows, setBulkRows] = useState<{ studentId: string; type: 'positive' | 'negative'; amount: number; date: string }[]>([
     { studentId: '', type: 'positive', amount: 1, date: today() }
   ]);
@@ -65,7 +71,19 @@ export default function Points() {
   const totalNegative = pointsList.filter(p => p.type === 'negative').reduce((s, p) => s + p.amount, 0);
 
   const openAdd = () => { setFormStudentId(''); setFormType('positive'); setFormAmount(1); setFormDate(today()); setAddOpen(true); };
-  const openBulk = () => { setBulkRows([{ studentId: '', type: 'positive', amount: 1, date: today() }]); setBulkOpen(true); };
+  const openBulk = () => {
+    setBulkShared(true);
+    setBulkSharedType('positive');
+    setBulkSharedDate(today());
+    setBulkRowCount(3);
+    setBulkRows(Array.from({ length: 3 }, () => ({ studentId: '', type: 'positive' as const, amount: 1, date: today() })));
+    setBulkOpen(true);
+  };
+
+  const generateBulkRows = () => {
+    const count = Math.max(1, Math.min(50, bulkRowCount));
+    setBulkRows(Array.from({ length: count }, () => ({ studentId: '', type: 'positive' as const, amount: 1, date: today() })));
+  };
 
   const handleSubmit = () => {
     if (!formStudentId) { toast.error(t('points.selectStudentError')); return; }
@@ -74,7 +92,13 @@ export default function Points() {
   };
 
   const handleBulkSubmit = () => {
-    const valid = bulkRows.filter(r => r.studentId && r.amount > 0);
+    const rows = bulkRows.map(r => ({
+      studentId: r.studentId,
+      type: bulkShared ? bulkSharedType : r.type,
+      amount: r.amount,
+      date: bulkShared ? bulkSharedDate : r.date,
+    }));
+    const valid = rows.filter(r => r.studentId && r.amount > 0);
     if (!valid.length) { toast.error(t('points.addValidRow')); return; }
     bulkMut.mutate(valid);
   };
@@ -83,7 +107,11 @@ export default function Points() {
     if (ids[0]) { setFormStudentId(ids[0]); setFormType('positive'); setFormAmount(1); setFormDate(today()); setAddOpen(true); }
   };
   const handleScanBulk = (ids: string[]) => {
+    setBulkShared(true);
+    setBulkSharedType('positive');
+    setBulkSharedDate(today());
     setBulkRows(ids.map(id => ({ studentId: id, type: 'positive' as const, amount: 1, date: today() })));
+    setBulkRowCount(ids.length);
     setBulkOpen(true);
   };
 
@@ -218,19 +246,28 @@ export default function Points() {
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t('points.bulkAddPoints')}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            {bulkRows.map((row, idx) => (
-              <div key={idx} className="flex gap-2 items-end border-b pb-3 flex-wrap">
-                <div className="flex-1 min-w-[150px] space-y-1">
-                  <Label className="text-xs">{t('common.student')}</Label>
-                  <Select value={row.studentId} onValueChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, studentId: v } : r))}>
-                    <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
-                    <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="w-28 space-y-1">
+          <div className="space-y-4">
+            {/* Row count */}
+            <div className="flex gap-3 items-end flex-wrap">
+              <div className="space-y-1">
+                <Label className="text-xs">{t('common.numberOfRows')}</Label>
+                <Input type="number" min={1} max={50} value={bulkRowCount} onChange={e => setBulkRowCount(Math.max(1, Number(e.target.value)))} className="w-24" />
+              </div>
+              <Button variant="outline" size="sm" onClick={generateBulkRows}>{t('common.generateRows')}</Button>
+            </div>
+
+            {/* Shared toggle */}
+            <div className="flex items-center gap-2">
+              <Switch checked={bulkShared} onCheckedChange={setBulkShared} />
+              <Label className="text-sm">{t('common.sharedSettings')}</Label>
+            </div>
+
+            {/* Shared fields */}
+            {bulkShared && (
+              <div className="flex gap-3 flex-wrap p-3 bg-muted/50 rounded-lg">
+                <div className="space-y-1 w-32">
                   <Label className="text-xs">{t('common.type')}</Label>
-                  <Select value={row.type} onValueChange={(v: 'positive' | 'negative') => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, type: v } : r))}>
+                  <Select value={bulkSharedType} onValueChange={(v: 'positive' | 'negative') => setBulkSharedType(v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="positive">{t('common.positive')}</SelectItem>
@@ -238,22 +275,55 @@ export default function Points() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-20 space-y-1">
-                  <Label className="text-xs">{t('common.amount')}</Label>
-                  <Input type="number" min={1} value={row.amount} onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, amount: Number(e.target.value) } : r))} />
-                </div>
-                <div className="w-40 space-y-1">
+                <div className="space-y-1">
                   <Label className="text-xs">{t('common.date')}</Label>
-                  <DatePickerField value={row.date} onChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, date: v } : r))} className="w-full" />
+                  <DatePickerField value={bulkSharedDate} onChange={setBulkSharedDate} className="w-40" />
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setBulkRows(prev => prev.filter((_, i) => i !== idx))} disabled={bulkRows.length <= 1}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
               </div>
-            ))}
-            <Button variant="outline" size="sm" onClick={() => setBulkRows(prev => [...prev, { studentId: '', type: 'positive', amount: 1, date: today() }])}>
-              <Plus className="me-2 h-4 w-4" />{t('points.addRow')}
-            </Button>
+            )}
+
+            {/* Rows */}
+            <div className="space-y-2">
+              {bulkRows.map((row, idx) => (
+                <div key={idx} className="flex gap-2 items-end flex-wrap border-b border-border pb-2">
+                  <div className="flex-1 min-w-[150px] space-y-1">
+                    <Label className="text-xs">{t('common.student')}</Label>
+                    <Select value={row.studentId} onValueChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, studentId: v } : r))}>
+                      <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
+                      <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.firstname} {s.lastname}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-20 space-y-1">
+                    <Label className="text-xs">{t('common.amount')}</Label>
+                    <Input type="number" min={1} value={row.amount} onChange={e => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, amount: Number(e.target.value) } : r))} />
+                  </div>
+                  {!bulkShared && (
+                    <>
+                      <div className="w-28 space-y-1">
+                        <Label className="text-xs">{t('common.type')}</Label>
+                        <Select value={row.type} onValueChange={(v: 'positive' | 'negative') => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, type: v } : r))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="positive">{t('common.positive')}</SelectItem>
+                            <SelectItem value="negative">{t('common.negative')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t('common.date')}</Label>
+                        <DatePickerField value={row.date} onChange={v => setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, date: v } : r))} className="w-36" />
+                      </div>
+                    </>
+                  )}
+                  <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setBulkRows(prev => prev.filter((_, i) => i !== idx))} disabled={bulkRows.length <= 1}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setBulkRows(prev => [...prev, { studentId: '', type: 'positive', amount: 1, date: today() }])}>
+                <Plus className="me-2 h-4 w-4" />{t('points.addRow')}
+              </Button>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkOpen(false)}>{t('common.cancel')}</Button>
