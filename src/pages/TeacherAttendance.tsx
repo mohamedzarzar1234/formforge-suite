@@ -54,6 +54,9 @@ export default function TeacherAttendance() {
   const [formReason, setFormReason] = useState('');
   const [formPeriod, setFormPeriod] = useState(10);
 
+  const [bulkRowCount, setBulkRowCount] = useState(3);
+  const [bulkShared, setBulkShared] = useState(true);
+  const [bulkSharedDate, setBulkSharedDate] = useState(today());
   const [bulkRows, setBulkRows] = useState<{ teacherId: string; session: string; date: string; isJustified: boolean; reason?: string; period?: number }[]>([{ teacherId: '', session: sessionOptions[0], date: today(), isJustified: false, period: 10 }]);
 
   const { data: teachersRes } = useQuery({ queryKey: ['teachers-all'], queryFn: () => teacherApi.getAll({ page: 1, limit: 1000 }) });
